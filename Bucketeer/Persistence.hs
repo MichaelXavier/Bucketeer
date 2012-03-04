@@ -9,10 +9,16 @@ module Bucketeer.Persistence (restore,
 import Bucketeer.Types
 
 import Control.Monad (when)
-import Database.Redis -- (hincrby, Redis(..))
 import Data.ByteString (ByteString(..))
 import Data.ByteString as BS (concat)
-import Data.ByteString.Char8 (pack, readInteger)
+import Data.ByteString.Char8 (pack,
+                              readInteger)
+import Database.Redis (hincrby,
+                       hset,
+                       hget,
+                       hsetnx,
+                       Redis(..),
+                       Reply(..))
 
 type Response a = Either ByteString a
 
