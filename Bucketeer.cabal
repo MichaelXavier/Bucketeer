@@ -1,0 +1,28 @@
+Name:                Bucketeer
+Version:             0.0.0
+Description:         HTTP service for leaky bucket style rate limiting
+License:             MIT
+License-file:        LICENSE
+Author:              Michael Xavier
+Copyright:           Copyright: (c) 2012 Michael Xavier
+Maintainer:          michael@michaelxavier.net
+Build-Type:          Simple
+Cabal-Version:       >= 1.6
+extra-source-files:  README.md
+
+Executable wmpoller
+  Main-is:           Main.hs
+  Build-Depends:     base >= 3 && < 5,
+                     bytestring == 0.9.*,
+                     unbounded-delays == 0.1.*,
+                     hedis == 0.4.*,
+                     unordered-containers == 0.2.*
+                     
+  GHC-Options: -Wall -O3 -threaded
+
+Test-Suite test-bucketeer
+  Type: exitcode-stdio-1.0
+  Main-Is: Bucketeer/Testing/Main.hs
+  Build-Depends:  haskell98 >= 1.1.0.1 && < 1.2,
+                  hspec     == 0.9.*,
+                  HUnit     == 1.2.*
