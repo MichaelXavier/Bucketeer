@@ -25,7 +25,30 @@ specs = descriptions . applyList [describe_restore]
 
 describe_restore :: Connection -> Specs
 describe_restore conn = describe "restore" [
-    it "when key missing: sets the key to 1" $ withCleanup conn (doRestore >> assertRemaining conn 1)
+    it "when key missing: sets the key to 1" $
+       withCleanup conn (doRestore >>
+                         assertRemaining conn 1),
+    it "when key missing: returns the remainder" $
+       withCleanup conn (doRestore >>=
+                         assertResponse 1),
+    it "when called twice: results in count of 2" $
+       withCleanup conn (doRestore >>
+                         doRestore >>
+                         assertRemaining conn 2),
+    it "when called twice: returns the remainder" $
+       withCleanup conn (doRestore >>
+                         doRestore >>=
+                         assertResponse 2),
+    it "when called thrice: does not exceed capacity" $
+       withCleanup conn (doRestore >>
+                         doRestore >>
+                         doRestore >>
+                         assertRemaining conn 2),
+    it "when called thrice: returns the remainder bound by the capacity" $
+       withCleanup conn (doRestore >>
+                         doRestore >>
+                         doRestore >>=
+                         assertResponse 2)
   ]
   where doRestore = runRedis conn $ restore cns feat cap
 
@@ -37,6 +60,11 @@ assertRemaining conn int = assertEqual message expected =<< getRemaining
         bsInt        = pack strIint
         message      = "Remaining = " ++ strIint
         strIint      = show int
+
+assertResponse :: (Show a, Eq a) => a -> Response a -> IO ()
+assertResponse x resp = assertEqual message resp expected >> return ()
+  where expected = Right x
+        message  = "Response = " ++ show x
 
 withCleanup :: Connection -> IO a -> IO a
 withCleanup conn io = finally io $ runRedis conn cleanup
