@@ -24,7 +24,8 @@ specs :: Connection
          -> Specs
 specs = descriptions . applyList [describe_restore,
                                   describe_drain,
-                                  describe_refill]
+                                  describe_refill,
+                                  describe_remaining]
 
 describe_restore :: Connection
                     -> Specs
@@ -33,8 +34,7 @@ describe_restore conn = describe "restore" [
        withCleanup conn (doRestore >>
                          assertRemaining conn 1),
     it "when key missing: returns the remainder" $
-       withCleanup conn (doRestore >>=
-                         assertResponse 1),
+       withCleanup conn (assertResponse 1 =<< doRestore), 
     it "when called twice: results in count of 2" $
        withCleanup conn (doRestore >>
                          doRestore >>
@@ -81,6 +81,22 @@ describe_refill conn = describe "refill" [
                         assertRemaining conn 2)
   ]
   where doRefill = runRedis conn $ refill cns feat cap
+
+describe_remaining :: Connection
+                  -> Specs
+describe_remaining conn = describe "remaining" [
+    it "when key is missing: returns 0" $
+      withCleanup conn (assertEqual "equals 0 " 0 =<< getRemaining),
+    it "when key is set: returns the key" $
+      withCleanup conn (overwriteKey conn "15" >>
+                        getRemaining >>=
+                        assertEqual "equals 15 " 15),
+    it "when key is corrupted: returns 0" $
+      withCleanup conn (overwriteKey conn "bogus" >>
+                        getRemaining >>=
+                        assertEqual "equals 0" 0)
+  ]
+  where getRemaining = runRedis conn $ remaining cns feat
 
 
 assertRemaining :: Connection
