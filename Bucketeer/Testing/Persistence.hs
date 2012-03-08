@@ -22,7 +22,9 @@ import Test.HUnit.Base (assertEqual,
 
 specs :: Connection
          -> Specs
-specs = descriptions . applyList [describe_restore, describe_drain]
+specs = descriptions . applyList [describe_restore,
+                                  describe_drain,
+                                  describe_refill]
 
 describe_restore :: Connection
                     -> Specs
@@ -66,6 +68,19 @@ describe_drain conn = describe "drain" [
                         assertRemaining conn 0)
   ]
   where doDrain = runRedis conn $ drain cns feat
+
+describe_refill :: Connection
+                  -> Specs
+describe_refill conn = describe "refill" [
+    it "when key is missing: sets the bucket to capacity" $
+      withCleanup conn (doRefill >>
+                        assertRemaining conn 2),
+    it "when key is set: sets the bucket to capacity" $
+      withCleanup conn (overwriteKey conn "15" >>
+                        doRefill               >>
+                        assertRemaining conn 2)
+  ]
+  where doRefill = runRedis conn $ refill cns feat cap
 
 
 assertRemaining :: Connection
