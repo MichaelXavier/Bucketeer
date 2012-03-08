@@ -29,7 +29,7 @@ specs = descriptions . applyList [describe_restore,
 
 describe_restore :: Connection
                     -> Specs
-describe_restore conn = describe "restore" [
+describe_restore conn = describe "Bucketeer.Persistence.restore" [
     it "when key missing: sets the key to 1" $
        withCleanup conn (doRestore >>
                          assertRemaining conn 1),
@@ -58,7 +58,7 @@ describe_restore conn = describe "restore" [
 
 describe_drain :: Connection
                   -> Specs
-describe_drain conn = describe "drain" [
+describe_drain conn = describe "Bucketeer.Persistence.drain" [
     it "when key is missing: sets the key to 0" $
       withCleanup conn (doDrain >>
                         assertRemaining conn 0),
@@ -71,7 +71,7 @@ describe_drain conn = describe "drain" [
 
 describe_refill :: Connection
                   -> Specs
-describe_refill conn = describe "refill" [
+describe_refill conn = describe "Bucketeer.Persistence.refill" [
     it "when key is missing: sets the bucket to capacity" $
       withCleanup conn (doRefill >>
                         assertRemaining conn 2),
@@ -84,7 +84,7 @@ describe_refill conn = describe "refill" [
 
 describe_remaining :: Connection
                   -> Specs
-describe_remaining conn = describe "remaining" [
+describe_remaining conn = describe "Bucketeer.Persistence.remaining" [
     it "when key is missing: returns 0" $
       withCleanup conn (assertEqual "equals 0 " 0 =<< getRemaining),
     it "when key is set: returns the key" $
