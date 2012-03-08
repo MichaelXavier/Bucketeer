@@ -5,6 +5,7 @@ import Bucketeer.Persistence
 import Bucketeer.Types
 import Bucketeer.Util
 
+import Control.Exception (finally)
 import Control.Monad.Instances
 import Data.ByteString (ByteString(..))
 import Data.ByteString.Char8 (pack)
@@ -37,10 +38,8 @@ assertRemaining conn int = assertEqual message expected =<< getRemaining
         message      = "Remaining = " ++ strIint
         strIint      = show int
 
-
---FIXME: clean up does not seem to run
 withCleanup :: Connection -> IO a -> IO a
-withCleanup conn io = const io $ runRedis conn cleanup
+withCleanup conn io = finally io $ runRedis conn cleanup
 
 cap :: Integer
 cap = 2
