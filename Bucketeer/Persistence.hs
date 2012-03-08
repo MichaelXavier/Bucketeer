@@ -91,4 +91,4 @@ namespaceSep :: ByteString
 namespaceSep = ":"
 
 namespace :: ByteString
-namespace = "bucketeer"
+namespace = "bucketeer:buckets"

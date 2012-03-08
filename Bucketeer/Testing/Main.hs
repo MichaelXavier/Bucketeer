@@ -1,8 +1,13 @@
 module Main (main) where
 
+import Bucketeer.Util
+import qualified Bucketeer.Testing.Persistence as P (specs)
+
+import Control.Applicative
+import Database.Redis (connect,
+                       defaultConnectInfo)
 import Test.Hspec (hspecX)
 
-import qualified Bucketeer.Testing.Persistence         as P  (specs)
-
 main :: IO ()
-main = hspecX $ P.specs
+main = do conn <- connect defaultConnectInfo
+          hspecX $ P.specs conn
