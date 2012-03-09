@@ -5,6 +5,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Bucketeer.WebServer (main) where
 
+import Bucketeer.Persistence (remaining)
+import Bucketeer.Types
+
 import Database.Redis (Connection,
                        connect,
                        runRedis,
@@ -16,15 +19,19 @@ import Yesod
 data BucketeerWeb = BucketeerWeb { connection :: Connection }
 
 mkYesod "BucketeerWeb" [parseRoutes|
-  / RootR GET
+  /consumers/#Consumer/features/#Feature RemainingR GET
 |]
 
 instance Yesod BucketeerWeb where
 
-getRootR :: Handler RepPlain
-getRootR = do BucketeerWeb { connection = conn } <- getYesod
-              Right len <- liftIO $ runRedis conn $ hlen "bucketeer:buckets:farge"
-              return $ RepPlain $ toContent $ show len
+getRemainingR :: Consumer -> Feature -> Handler RepPlain
+getRemainingR cns feat = renderPlain =<< doRemaining =<< getConn
+  where doRemaining conn = liftIO $ runRedis conn $ remaining cns feat 
+
+getConn = return . connection =<< getYesod
+
+renderPlain :: (Monad m, Show a) => a -> m RepPlain
+renderPlain = return . RepPlain . toContent . show
 
 main :: IO ()
 main = do conn <- connect defaultConnectInfo
