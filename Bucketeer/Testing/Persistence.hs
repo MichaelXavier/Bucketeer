@@ -132,7 +132,7 @@ assertRemaining :: Connection
                    -> Integer
                    -> IO ()
 assertRemaining conn int = assertEqual message expected =<< getRemaining 
-  where getRemaining = runRedis conn $ hget nsk feat
+  where getRemaining = runRedis conn $ hget nsk feat'
         expected     = Right (Just bsInt)
         bsInt        = pack strIint
         message      = "Remaining = " ++ strIint
@@ -154,7 +154,7 @@ withCleanup conn io = finally io $ runRedis conn cleanup
 overwriteKey :: Connection
                 -> ByteString
                 -> IO ()
-overwriteKey conn bs = runRedis conn $ hset nsk feat bs >> return ()
+overwriteKey conn bs = runRedis conn $ hset nsk feat' bs >> return ()
 
 cap :: Integer
 cap = 2
@@ -165,8 +165,14 @@ cleanup = del [nsk] >> return ()
 nsk :: ByteString
 nsk = "bucketeer:buckets:summer"
 
-feat :: ByteString
-feat = "barrel_roll"
+feat :: Feature
+feat = Feature feat'
 
-cns :: ByteString
-cns = "summer"
+feat' :: ByteString
+feat' = "barrel_roll"
+
+cns :: Consumer
+cns = Consumer cns'
+
+cns' :: ByteString
+cns' = "summer"

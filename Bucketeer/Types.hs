@@ -1,11 +1,14 @@
-module Bucketeer.Types (Consumer,
-                        Feature,
+{-# LANGUAGE TypeSynonymInstances           #-}
+module Bucketeer.Types (Consumer(..),
+                        Feature(..),
                         Bucket(..)) where
 
 import Data.ByteString (ByteString)
+import Yesod.Dispatch (PathPiece)
 
-type Consumer = ByteString
-type Feature  = ByteString
+--TODO: newtype
+newtype Consumer = Consumer ByteString
+newtype Feature  = Feature  ByteString
 
 data Bucket = Bucket { consumer     :: Consumer,
                        feature      :: Feature,

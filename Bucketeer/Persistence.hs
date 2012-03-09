@@ -32,38 +32,40 @@ restore :: Consumer
            -> Redis (Response Integer)
 restore cns feat capacity = incrToCapacity =<< remaining cns feat
   where incrToCapacity count
-          | count < capacity = return . extractResponse =<< hincr nsk feat
+          | count < capacity = return . extractResponse =<< hincr nsk feat'
           | otherwise        = return $ Right count
         nsk = namespacedKey cns
+        Feature  feat' = feat
 
 drain :: Consumer
          -> Feature
          -> Redis ()
-drain cns feat = hset nsk feat "0" >> return ()
+drain cns (Feature feat) = hset nsk feat "0" >> return ()
   where nsk = namespacedKey cns
 
 refill :: Consumer
          -> Feature
          -> Integer
          -> Redis ()
-refill cns feat capacity = hset nsk feat capacity' >> return ()
+refill cns (Feature feat) capacity = hset nsk feat capacity' >> return ()
   where nsk = namespacedKey cns
         capacity' = pack . show $ capacity
 
 tick :: Consumer
         -> Feature
         -> Redis TickResult
-tick cns feat = do _ <- hsetnx nsk feat "0"
+tick cns feat = do _ <- hsetnx nsk feat' "0"
                    count <- remaining cns feat
                    if count > 0 then decrement >> return (TickAllowed $ count - 1)
                    else                           return BucketExhausted
-  where decrement = hdecr nsk feat
-        nsk       = namespacedKey cns
+  where decrement     = hdecr nsk feat'
+        nsk           = namespacedKey cns
+        Feature feat' = feat
   
 remaining :: Consumer 
              -> Feature 
              -> Redis Integer
-remaining cns feat = return . cast =<< hget nsk feat 
+remaining cns (Feature feat) = return . cast =<< hget nsk feat 
   where cast (Left _)          = 0
         cast (Right Nothing)   = 0
         cast (Right (Just bs)) = castInt bs
@@ -84,7 +86,7 @@ hincr key field = hincrby key field 1
 
 namespacedKey :: Consumer
                  -> ByteString
-namespacedKey cns = BS.concat [namespace, namespaceSep, cns]
+namespacedKey (Consumer cns) = BS.concat [namespace, namespaceSep, cns]
 
 extractResponse :: Either Reply a 
                    -> Response a
