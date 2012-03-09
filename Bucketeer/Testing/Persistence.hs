@@ -18,7 +18,6 @@ import Database.Redis (Redis(..),
 import Test.Hspec (Specs,
                    describe,
                    descriptions,
-                   pending,
                    it)
 import Test.Hspec.HUnit
 import Test.HUnit.Base (assertEqual,

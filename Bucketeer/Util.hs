@@ -9,7 +9,8 @@ import Control.Concurrent.MVar (newEmptyMVar,
 import Control.Exception.Base (finally)
 import Control.Monad.Instances
 
-forkWaitableIO :: IO () -> IO (MVar (), ThreadId)
+forkWaitableIO :: IO ()
+                  -> IO (MVar (), ThreadId)
 forkWaitableIO io = do v <- newEmptyMVar
                        tid <- forkIO $ io `finally` putMVar v ()
                        return (v, tid)
