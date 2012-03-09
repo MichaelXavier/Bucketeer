@@ -1,4 +1,5 @@
 module Bucketeer.Util (forkWaitableIO,
+                       toMaybe,
                        applyList) where
 
 import Control.Concurrent (forkIO,
@@ -17,3 +18,10 @@ forkWaitableIO io = do v <- newEmptyMVar
 
 applyList :: [(a -> b)] -> a -> [b]
 applyList = sequence
+
+toMaybe :: (a -> Bool)
+           -> a
+           -> Maybe a
+toMaybe pred x
+        | pred x    = Just x
+        | otherwise = Nothing
