@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Bucketeer.Persistence (restore,
-                              tick, -- probably a better name
+                              tick,
                               refill,
                               drain,
                               remaining,
+                              TickResult(..),
                               Response) where
 
 import Bucketeer.Types
@@ -21,6 +22,9 @@ import Database.Redis (hincrby,
                        Reply(..))
 
 type Response a = Either ByteString a
+
+data TickResult = TickAllowed Integer |
+                  BucketExhausted deriving (Eq, Show)
 
 restore :: Consumer
            -> Feature
@@ -48,12 +52,13 @@ refill cns feat capacity = hset nsk feat capacity' >> return ()
 
 tick :: Consumer
         -> Feature
-        -> Redis (Response Integer)
+        -> Redis TickResult
 tick cns feat = do _ <- hsetnx nsk feat "0"
                    count <- remaining cns feat
-                   when (count > 0) $ hdecr nsk feat >> return ()
-                   return $ Right count
-  where nsk = namespacedKey cns
+                   if count > 0 then decrement >> return (TickAllowed $ count - 1)
+                   else                           return BucketExhausted
+  where decrement = hdecr nsk feat
+        nsk       = namespacedKey cns
   
 remaining :: Consumer 
              -> Feature 

@@ -15,7 +15,11 @@ import Database.Redis (Redis(..),
                        hget,
                        hset,
                        del)
-import Test.Hspec (Specs, describe, descriptions, it)
+import Test.Hspec (Specs,
+                   describe,
+                   descriptions,
+                   pending,
+                   it)
 import Test.Hspec.HUnit
 import Test.HUnit.Base (assertEqual,
                         Assertion)
@@ -25,7 +29,8 @@ specs :: Connection
 specs = descriptions . applyList [describe_restore,
                                   describe_drain,
                                   describe_refill,
-                                  describe_remaining]
+                                  describe_remaining,
+                                  describe_tick]
 
 describe_restore :: Connection
                     -> Specs
@@ -97,6 +102,31 @@ describe_remaining conn = describe "Bucketeer.Persistence.remaining" [
                         assertEqual "equals 0" 0)
   ]
   where getRemaining = runRedis conn $ remaining cns feat
+
+describe_tick :: Connection
+                  -> Specs
+describe_tick conn = describe "Bucketeer.Persistence.tick" [
+    it "when key is missing: sets the key to 0" $
+      withCleanup conn (doTick >>
+                        assertRemaining conn 0),
+    it "when key is missing: returns BucketExhausted" $ 
+      withCleanup conn (assertEqual "BucketExhausted" BucketExhausted =<< doTick),
+    it "when key is 0: leaves the key at 0" $
+      withCleanup conn (overwriteKey conn "0" >>
+                        doTick                >>
+                        assertRemaining conn 0),
+    it "when key is 0: returns BucketExhausted" $ 
+      withCleanup conn (assertEqual "BucketExhausted" BucketExhausted =<< doTick),
+    it "when key is > 0: decrements the key" $
+      withCleanup conn (overwriteKey conn "2" >>
+                        doTick                >>
+                        assertRemaining conn 1),
+    it "when key is > 0: returns TickAllowed with the remaining count" $ 
+      withCleanup conn (overwriteKey conn "2" >>
+                        doTick                >>=
+                        assertEqual "TickAllowed 1" (TickAllowed 1))
+  ]
+  where doTick = runRedis conn $ tick cns feat
 
 
 assertRemaining :: Connection
