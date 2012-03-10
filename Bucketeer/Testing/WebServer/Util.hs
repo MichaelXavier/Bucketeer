@@ -19,6 +19,7 @@ import Test.HUnit.Base ((~?=))
 
 specs :: Specs
 specs = descriptions [describe_ResponseError_toJSON,
+                      describe_RemainingResponse_toJSON,
                       describe_exhaustedResponse]
 
 describe_ResponseError_toJSON :: Specs
@@ -27,6 +28,12 @@ describe_ResponseError_toJSON = describe "Bucketeer.WebServer.Util.ResponseError
   ]
   where re = ResponseError { errorId          = "Out of Cheese",
                              errorDescription = "Redo from start"}
+
+describe_RemainingResponse_toJSON :: Specs
+describe_RemainingResponse_toJSON = describe "Bucketeer.WebServer.Util.RemainingResponse toJSON" [
+    it "formats the JSON properly" $ toJSONText rr ~?= "{\"remaining\":3}"
+  ]
+  where rr = RemainingResponse 3
 
 describe_exhaustedResponse :: Specs
 describe_exhaustedResponse = describe "Bucketeer.WebServer.Util.exhaustedResponse" [

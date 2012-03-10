@@ -34,19 +34,14 @@ mkYesod "BucketeerWeb" [parseRoutes|
 
 getBucketR :: Consumer
               -> Feature
-              -> Handler RepPlain
-getBucketR cns feat = renderPlain =<< doRemaining =<< getConn
+              -> Handler RepJson
+getBucketR cns feat = jsonToRepJson . RemainingResponse =<< doRemaining =<< getConn
   where doRemaining conn = liftIO $ runRedis conn $ remaining cns feat 
 
---TODO: json responses instead
 postBucketTickR :: Consumer
                -> Feature
-               -> Handler RepPlain
-postBucketTickR cns feat = do tickResp <- doTick =<< getConn
-                              case tickResp of
-                                TickAllowed n   -> renderPlain n
-                                BucketExhausted -> sendResponseStatus enhanceYourCalm exhaustedResp
-
+               -> Handler RepJson
+postBucketTickR cns feat = jsonToRepJson . tickResponse =<< doTick =<< getConn
   where doTick conn = liftIO $ runRedis conn $ tick cns feat
         exhaustedResp = RepPlain . toContent $ ("chill" :: Text)
 
