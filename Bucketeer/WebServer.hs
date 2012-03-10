@@ -15,7 +15,6 @@ import Data.ByteString (ByteString(..))
 import Database.Redis (Connection,
                        connect,
                        runRedis,
-                       hlen,
                        defaultConnectInfo)
 import Network.Wai.Handler.Warp (run)
 import Data.Text (Text(..))
