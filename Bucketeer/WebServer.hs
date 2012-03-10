@@ -10,6 +10,8 @@ import Bucketeer.Persistence (remaining,
                               drain,
                               refill,
                               TickResult(..))
+import Bucketeer.Manager (BucketManager,
+                          defaultBucketManager)
 import Bucketeer.Types
 import Bucketeer.WebServer.Util
 
@@ -22,9 +24,10 @@ import Network.Wai.Handler.Warp (run)
 import Data.Text (Text(..))
 import Yesod
 
-instance Yesod BucketeerWeb where
+data BucketeerWeb = BucketeerWeb { connection    :: Connection,
+                                   bucketManager :: BucketManager }
 
-data BucketeerWeb = BucketeerWeb { connection :: Connection }
+instance Yesod BucketeerWeb where
 
 
 --TODO: deletion of consumers, buckets?
@@ -71,7 +74,7 @@ postBucketDrainR cns feat = doDrain =<< getConn
 
 main :: IO ()
 main = do conn <- connect defaultConnectInfo
-          run 3000 =<< toWaiApp (BucketeerWeb conn)
+          run 3000 =<< toWaiApp (BucketeerWeb conn defaultBucketManager)
 
 
 ---- Helpers

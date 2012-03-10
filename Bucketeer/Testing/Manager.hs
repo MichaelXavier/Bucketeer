@@ -2,6 +2,7 @@
 module Bucketeer.Testing.Manager (specs) where
 
 import Bucketeer.Manager
+import Bucketeer.Testing.TestHelpers
 import Bucketeer.Types
 import Bucketeer.Util
 
@@ -23,7 +24,9 @@ specs :: IO Specs
 specs = do tid <- myThreadId
            return $ descriptions [describe_addBucket tid,
                                   describe_revokeFeature tid,
-                                  describe_revokeConsumer tid]
+                                  describe_revokeConsumer tid,
+                                  describe_SerializedBucketManager_fromJSON,
+                                  describe_SerializedBucketManager_toJSON]
 
 describe_addBucket :: ThreadId
                       -> Specs
@@ -57,6 +60,24 @@ describe_revokeConsumer tid = describe "Bucketeer.Manager.revokeConsumer" [
                                                            (Consumer "joe", Feature "spare_me")]
         onlyJoe = singleton (Consumer "joe", Feature "spare_me") $ bi tid
 
+describe_SerializedBucketManager_fromJSON :: Specs
+describe_SerializedBucketManager_fromJSON = describe "Bucketeer.Manager.SerializedBucketManager fromJSON" [
+    it "parses an empty object"           $
+      parseJSON "{}" ~?= Right emptySBM,
+    it "parses a valid, non-empty object" $
+      parseJSON "{\"summer\":[\"barrel_roll\",\"wat\"]}" ~?= Right (fullSBM),
+    it "parses the wrong type"            $
+      (parseJSON "[]" :: Either String SerializedBucketManager) ~?= Left "when expecting a Object, encountered Array instead"
+  ]
+
+describe_SerializedBucketManager_toJSON :: Specs
+describe_SerializedBucketManager_toJSON = describe "Bucketeer.Manager.SerializedBucketManager toJSON" [
+    it "serializes an empty SerializedBucketManager"                          $
+      toJSONText emptySBM ~?= "{}",
+    it "serializes a non-empty SerializedBucketManager, not preserving order" $
+      toJSONText fullSBM ~?= "{\"summer\":[\"wat\",\"barrel_roll\"]}"
+  ]
+
 ---- Helpers
 bm :: BucketManager
 bm = empty
@@ -80,3 +101,9 @@ cns = Consumer "summer"
 
 feat :: Feature
 feat = Feature "barrel_roll"
+
+emptySBM :: SerializedBucketManager
+emptySBM = SerializedBucketManager []
+
+fullSBM :: SerializedBucketManager
+fullSBM = SerializedBucketManager [(cns, [Feature "wat", feat])]

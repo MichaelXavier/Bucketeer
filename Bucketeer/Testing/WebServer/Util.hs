@@ -3,13 +3,9 @@ module Bucketeer.Testing.WebServer.Util (specs) where
 
 import Bucketeer.Types
 import Bucketeer.WebServer.Util
+import Bucketeer.Testing.TestHelpers (toJSONText)
 
-import Data.Aeson.Types (ToJSON,
-                         toJSON)
-import Data.Aeson.Encode (fromValue)
 import Data.ByteString (ByteString(..))
-import Data.Text.Lazy (Text(..))
-import Data.Text.Lazy.Builder (toLazyText)
 import Test.Hspec (Specs,
                    describe,
                    descriptions,
@@ -48,8 +44,3 @@ cns = Consumer "summer"
 
 feat :: Feature
 feat = Feature "barrel_roll"
-
-toJSONText :: ToJSON a
-              => a
-              -> Text
-toJSONText = toLazyText . fromValue . toJSON

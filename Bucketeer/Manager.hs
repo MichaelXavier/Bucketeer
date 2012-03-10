@@ -1,4 +1,6 @@
-module Bucketeer.Manager (BucketManager,
+module Bucketeer.Manager (BucketManager(..),
+                          defaultBucketManager,
+                          SerializedBucketManager(..),
                           BucketInterface(..),
                           addBucket,
                           revokeFeature,
@@ -10,17 +12,46 @@ import Bucketeer.Types
 import Control.Applicative ((<$>))
 import Control.Concurrent (killThread,
                            ThreadId)
+import Data.Aeson.Types (FromJSON,
+                         parseJSON,
+                         ToJSON,
+                         toJSON,
+                         object,
+                         Value(..),
+                         typeMismatch,
+                         (.=))
 import Data.List (foldl')
 import Data.Maybe (maybe)
-import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict (HashMap,
+                            empty)
+
+import Data.Text.Encoding (encodeUtf8,
+                           decodeUtf8)
+import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as H
 
-type BucketDict = HashMap (Consumer, Feature) BucketInterface
+type BucketManager = BucketDict
 
-data BucketInterface = BucketInterface { bucket         :: Bucket,
-                                         refillerThread :: ThreadId } deriving (Show, Eq)
+newtype SerializedBucketManager = SerializedBucketManager [(Consumer, [Feature])] deriving (Eq, Show)
 
-type BucketManager = BucketDict -- todo
+instance ToJSON SerializedBucketManager where
+  toJSON (SerializedBucketManager bs) = object $ foldl' prependBucket [] bs
+    where prependBucket pairs (Consumer cns, feats) = (decodeUtf8 cns .=  map convertFeat feats):pairs
+          convertFeat (Feature feat)                = decodeUtf8 feat
+
+instance FromJSON SerializedBucketManager where
+  parseJSON (Object obj) = return $ H.foldlWithKey' tuple emptySBM obj
+    where emptySBM = SerializedBucketManager []
+          tuple (SerializedBucketManager bs) txtCns (Array featVals) = SerializedBucketManager $ (convertCns txtCns, extractFeatures featVals):bs
+          tuple (SerializedBucketManager bs) txtCns _                = SerializedBucketManager bs
+          extractFeatures = V.foldl' collectIfText []
+          collectIfText feats (String feat) = (Feature . encodeUtf8 $ feat):feats
+          collectIfText feats _             = feats
+          convertCns = Consumer . encodeUtf8
+  parseJSON v            = typeMismatch "Object" v
+
+defaultBucketManager :: BucketManager
+defaultBucketManager = empty
 
 addBucket :: Bucket
              -> ThreadId
@@ -53,3 +84,9 @@ revokeConsumer cns bm = foldl' delKey (bm, []) ks
 ---- Helpers
 updateBI :: Bucket -> BucketInterface -> BucketInterface
 updateBI b bi = bi {bucket = b }
+
+type BucketDict = HashMap (Consumer, Feature) BucketInterface
+
+data BucketInterface = BucketInterface { bucket         :: Bucket,
+                                         refillerThread :: ThreadId } deriving (Show, Eq)
+
