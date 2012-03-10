@@ -1,4 +1,5 @@
 module Bucketeer.Manager (BucketManager,
+                          BucketInterface(..),
                           addBucket,
                           revokeFeature,
                           revokeConsumer) where
@@ -17,7 +18,7 @@ import qualified Data.HashMap.Strict as H
 type BucketDict = HashMap (Consumer, Feature) BucketInterface
 
 data BucketInterface = BucketInterface { bucket         :: Bucket,
-                                         refillerThread :: ThreadId}
+                                         refillerThread :: ThreadId } deriving (Show, Eq)
 
 type BucketManager = BucketDict -- todo
 
@@ -46,8 +47,8 @@ revokeConsumer cns bm = foldl' delKey (bm, []) ks
   where ks                   = filter keyMatch $ H.keys bm
         keyMatch             = (==cns) . fst
         delKey (bm', tids) k = case delete' k bm' of
-                                (_, Nothing)                                          -> (bm', tids)
-                                (bm'', Just BucketInterface { refillerThread = tid }) -> (bm', tid:tids)
+                                (_, Nothing)                                          -> (bm',  tids)
+                                (bm'', Just BucketInterface { refillerThread = tid }) -> (bm'', tid:tids)
 
 ---- Helpers
 updateBI :: Bucket -> BucketInterface -> BucketInterface

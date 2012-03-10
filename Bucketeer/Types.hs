@@ -39,4 +39,4 @@ instance PathPiece Feature where
 data Bucket = Bucket { consumer     :: Consumer,
                        feature      :: Feature,
                        capacity     :: Integer,
-                       restoreRate  :: Integer } -- ^ 1 restored every restoreRate seconds
+                       restoreRate  :: Integer } deriving (Show, Eq) -- ^ 1 restored every restoreRate seconds
