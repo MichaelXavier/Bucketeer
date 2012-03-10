@@ -7,6 +7,8 @@ module Bucketeer.WebServer (main) where
 
 import Bucketeer.Persistence (remaining,
                               tick,
+                              drain,
+                              refill,
                               TickResult(..))
 import Bucketeer.Types
 import Bucketeer.WebServer.Util
@@ -25,8 +27,10 @@ instance Yesod BucketeerWeb where
 data BucketeerWeb = BucketeerWeb { connection :: Connection }
 
 
+--TODO: deletion of consumers, buckets?
+
 mkYesod "BucketeerWeb" [parseRoutes|
-  /consumers/#Consumer/buckets/#Feature        BucketR       GET POST DELETE
+  /consumers/#Consumer/buckets/#Feature        BucketR       GET POST
   /consumers/#Consumer/buckets/#Feature/tick   BucketTickR   POST
   /consumers/#Consumer/buckets/#Feature/refill BucketRefillR POST
   /consumers/#Consumer/buckets/#Feature/drain  BucketDrainR  POST
@@ -38,12 +42,32 @@ getBucketR :: Consumer
 getBucketR cns feat = jsonToRepJson . RemainingResponse =<< doRemaining =<< getConn
   where doRemaining conn = liftIO $ runRedis conn $ remaining cns feat 
 
-postBucketTickR :: Consumer
+--TODO: need manager
+postBucketR :: Consumer
                -> Feature
-               -> Handler RepJson
-postBucketTickR cns feat = jsonToRepJson . tickResponse =<< doTick =<< getConn
+               -> Handler ()
+postBucketR cns feat = undefined 
+
+--TODO: handle throttle with statuscode
+postBucketTickR :: Consumer
+                   -> Feature
+                   -> Handler RepJson
+postBucketTickR cns feat = repResponse . tickResponse cns feat =<< doTick =<< getConn
   where doTick conn = liftIO $ runRedis conn $ tick cns feat
-        exhaustedResp = RepPlain . toContent $ ("chill" :: Text)
+        repResponse = either jsonToRepJson jsonToRepJson 
+
+--TODO: need manager
+postBucketRefillR :: Consumer
+                     -> Feature
+                     -> Handler ()
+postBucketRefillR cns feat = doRefill =<< getConn
+  where doRefill conn = liftIO $ runRedis conn $ refill cns feat 15
+
+postBucketDrainR :: Consumer
+                    -> Feature
+                    -> Handler ()
+postBucketDrainR cns feat = doDrain =<< getConn
+  where doDrain conn = liftIO $ runRedis conn $ drain cns feat
 
 main :: IO ()
 main = do conn <- connect defaultConnectInfo
