@@ -1,4 +1,5 @@
 module Bucketeer.Manager (BucketManager(..),
+                          bmToSBM,
                           defaultBucketManager,
                           SerializedBucketManager(..),
                           BucketInterface(..),
@@ -32,6 +33,12 @@ import qualified Data.HashMap.Strict as H
 
 type BucketManager = BucketDict
 
+bmToSBM :: BucketManager -> SerializedBucketManager
+bmToSBM bm = SerializedBucketManager $ H.toList byCns
+  where bmKeys = H.keys bm
+        byCns  = foldl' insertPair H.empty bmKeys
+        insertPair h (cns, feat) = H.insertWith (++) cns [feat] h
+
 newtype SerializedBucketManager = SerializedBucketManager [(Consumer, [Feature])] deriving (Eq, Show)
 
 instance ToJSON SerializedBucketManager where
@@ -40,9 +47,8 @@ instance ToJSON SerializedBucketManager where
           convertFeat (Feature feat)                = decodeUtf8 feat
 
 instance FromJSON SerializedBucketManager where
-  parseJSON (Object obj) = return $ H.foldlWithKey' tuple emptySBM obj
-    where emptySBM = SerializedBucketManager []
-          tuple (SerializedBucketManager bs) txtCns (Array featVals) = SerializedBucketManager $ (convertCns txtCns, extractFeatures featVals):bs
+  parseJSON (Object obj) = return $ H.foldlWithKey' tuple (SerializedBucketManager []) obj
+    where tuple (SerializedBucketManager bs) txtCns (Array featVals) = SerializedBucketManager $ (convertCns txtCns, extractFeatures featVals):bs
           tuple (SerializedBucketManager bs) txtCns _                = SerializedBucketManager bs
           extractFeatures = V.foldl' collectIfText []
           collectIfText feats (String feat) = (Feature . encodeUtf8 $ feat):feats
