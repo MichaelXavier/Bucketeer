@@ -4,17 +4,24 @@ module Bucketeer.Persistence (restore,
                               refill,
                               drain,
                               remaining,
+                              storeBucketManager,
+                              restoreBuckets,
                               TickResult(..),
                               Response) where
 
 import Bucketeer.Types
+import Bucketeer.Manager (BucketManager,
+                          deserializeBucketManager,
+                          serializeBucketManager)
 
 import Control.Monad (when)
 import Data.ByteString (ByteString(..))
-import Data.ByteString as BS (concat)
+import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack,
                               readInteger)
 import Database.Redis (hincrby,
+                       set,
+                       get,
                        hset,
                        hget,
                        hsetnx,
@@ -72,6 +79,18 @@ remaining cns (Feature feat) = return . cast =<< hget nsk feat
         castInt                = (maybe 0 fst) . readInteger
         nsk                    = namespacedKey cns
 
+storeBucketManager :: BucketManager
+                      -> Redis ()
+storeBucketManager bm = set managerKey serialized  >> return ()
+  where serialized = serializeBucketManager bm
+
+restoreBuckets :: Redis (Either String [Bucket])
+restoreBuckets = return . loadBM =<< get managerKey
+  where loadBM (Left _)        = Left "Redis returned unexpected response"
+        loadBM (Right Nothing)   = Left "Could not find manager at bucketeer:manager"
+        loadBM (Right (Just bs)) = deserializeBucketManager bs
+        
+
 ---- Helpers
 
 hdecr :: ByteString
@@ -96,6 +115,9 @@ extractResponse (Left x)           = Left . pack . show $ x
 
 namespaceSep :: ByteString
 namespaceSep = ":"
+
+managerKey :: ByteString
+managerKey = "bucketeer:manager"
 
 namespace :: ByteString
 namespace = "bucketeer:buckets"

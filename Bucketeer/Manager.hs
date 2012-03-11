@@ -1,7 +1,8 @@
 module Bucketeer.Manager (BucketManager(..),
-                          bmToSBM,
+                          buckets,
+                          serializeBucketManager,
+                          deserializeBucketManager,
                           defaultBucketManager,
-                          SerializedBucketManager(..),
                           BucketInterface(..),
                           addBucket,
                           revokeFeature,
@@ -13,6 +14,8 @@ import Bucketeer.Types
 import Control.Applicative ((<$>))
 import Control.Concurrent (killThread,
                            ThreadId)
+
+import Data.Aeson.Encode (encode) --TODO: move to Manager
 import Data.Aeson.Types (FromJSON,
                          parseJSON,
                          ToJSON,
@@ -21,6 +24,9 @@ import Data.Aeson.Types (FromJSON,
                          Value(..),
                          typeMismatch,
                          (.=))
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LBS
 import Data.List (foldl')
 import Data.Maybe (maybe)
 import Data.HashMap.Strict (HashMap,
@@ -33,28 +39,16 @@ import qualified Data.HashMap.Strict as H
 
 type BucketManager = BucketDict
 
-bmToSBM :: BucketManager -> SerializedBucketManager
-bmToSBM bm = SerializedBucketManager $ H.toList byCns
-  where bmKeys = H.keys bm
-        byCns  = foldl' insertPair H.empty bmKeys
-        insertPair h (cns, feat) = H.insertWith (++) cns [feat] h
+buckets :: BucketManager -> [Bucket]
+buckets = map bucket . H.elems
 
-newtype SerializedBucketManager = SerializedBucketManager [(Consumer, [Feature])] deriving (Eq, Show)
+serializeBucketManager :: BucketManager
+                          -> ByteString
+serializeBucketManager = BS.concat . LBS.toChunks . encode . buckets
 
-instance ToJSON SerializedBucketManager where
-  toJSON (SerializedBucketManager bs) = object $ foldl' prependBucket [] bs
-    where prependBucket pairs (Consumer cns, feats) = (decodeUtf8 cns .=  map convertFeat feats):pairs
-          convertFeat (Feature feat)                = decodeUtf8 feat
-
-instance FromJSON SerializedBucketManager where
-  parseJSON (Object obj) = return $ H.foldlWithKey' tuple (SerializedBucketManager []) obj
-    where tuple (SerializedBucketManager bs) txtCns (Array featVals) = SerializedBucketManager $ (convertCns txtCns, extractFeatures featVals):bs
-          tuple (SerializedBucketManager bs) txtCns _                = SerializedBucketManager bs
-          extractFeatures = V.foldl' collectIfText []
-          collectIfText feats (String feat) = (Feature . encodeUtf8 $ feat):feats
-          collectIfText feats _             = feats
-          convertCns = Consumer . encodeUtf8
-  parseJSON v            = typeMismatch "Object" v
+deserializeBucketManager :: ByteString
+                            -> Either String [Bucket]
+deserializeBucketManager = undefined
 
 defaultBucketManager :: BucketManager
 defaultBucketManager = empty

@@ -1,7 +1,7 @@
 module Bucketeer.Testing.TestHelpers (toJSONText,
                                       parseJSON) where
 
-import Data.Aeson (json,
+import Data.Aeson (json',
                    Result(..),
                    FromJSON,
                    fromJSON)
@@ -23,7 +23,7 @@ parseJSON :: FromJSON a
              => ByteString
              -> Either String a
 parseJSON str = fjson =<< parsed
-  where parsed = eitherResult . parse json $ str
+  where parsed = eitherResult . parse json' $ str
         fjson v = case fromJSON v of
                     Success x -> Right x
                     Error e   -> Left e
