@@ -1,21 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Bucketeer.Refiller (runRefiller)
 import Bucketeer.Types
-import Bucketeer.Util (forkWaitableIO)
+import Bucketeer.Manager
+import Bucketeer.Persistence
 
-import Control.Concurrent.MVar (takeMVar)
-import Database.Redis (defaultConnectInfo)
+import Control.Concurrent
+import Database.Redis
 
 main :: IO ()
-main = do
-  (mvar, _) <- forkWaitableIO $ runRefiller ci bucket
-  putStrLn "Running..."
-  _ <- takeMVar mvar
-  return ()
+main = do conn <- connect ci
+          tid <- myThreadId
+          let bm = addBucket bucket tid defaultBucketManager
+          runRedis conn $ storeBucketManager bm
+          return ()
   where ci = defaultConnectInfo
-        bucket = Bucket { consumer = "sample_customer",
-                          feature = "fun stuff",
-                          capacity = 10,
+        bucket = Bucket { consumer    = Consumer "sample_customer",
+                          feature     = Feature "fun stuff",
+                          capacity    = 10,
                           restoreRate = 1 }
