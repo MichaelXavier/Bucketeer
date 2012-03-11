@@ -26,11 +26,11 @@ describe_Bucket_toJSON = describe "Bucketeer.Types.Bucket toJSON" [
 describe_Bucket_fromJSON :: Specs
 describe_Bucket_fromJSON = describe "Bucketeer.Types.Bucket fromJSON" [
     it "parses well-formed json" $
-      parseJSON bktJSON ~?= Right bkt,
+      decodeJSON bktJSON ~?= Right bkt,
     it "fails json missing keys" $
-      parseJSON "{\"restore_rate\":1}" ~?= (Left "key \"consumer\" not present" :: Either String Bucket),
+      decodeJSON "{\"restore_rate\":1}" ~?= (Left "key \"consumer\" not present" :: Either String Bucket),
     it "fails json of the wrong type" $
-      parseJSON "[]" ~?= (Left "when expecting a Object, encountered Array instead" :: Either String Bucket)
+      decodeJSON "[]" ~?= (Left "when expecting a Object, encountered Array instead" :: Either String Bucket)
   ]
   where bktJSON = "{\"restore_rate\":1,\"capacity\":2,\"feature\":\"barrel_roll\",\"consumer\":\"summer\"}"
 

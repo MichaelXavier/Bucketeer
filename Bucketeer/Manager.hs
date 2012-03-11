@@ -48,7 +48,7 @@ serializeBucketManager = BS.concat . LBS.toChunks . encode . buckets
 
 deserializeBucketManager :: ByteString
                             -> Either String [Bucket]
-deserializeBucketManager = undefined
+deserializeBucketManager = decodeJSON
 
 defaultBucketManager :: BucketManager
 defaultBucketManager = empty

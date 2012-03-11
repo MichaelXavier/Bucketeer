@@ -1,7 +1,8 @@
 module Bucketeer.Util (forkWaitableIO,
                        toMaybe,
                        delete',
-                       applyList) where
+                       applyList,
+                       decodeJSON) where
 
 import Control.Applicative ((<*))
 import Control.Concurrent (forkIO,
@@ -9,6 +10,15 @@ import Control.Concurrent (forkIO,
 import Control.Concurrent.MVar (newEmptyMVar,
                                 putMVar,
                                 MVar)
+import Data.Aeson (json',
+                   Result(..),
+                   FromJSON,
+                   fromJSON)
+import Data.Attoparsec (eitherResult,
+                        parse)
+import Data.Aeson.Types (ToJSON,
+                         toJSON)
+import Data.ByteString (ByteString)
 import Data.Hashable (Hashable)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as H
@@ -21,7 +31,9 @@ forkWaitableIO io = do v <- newEmptyMVar
                        tid <- forkIO $ io `finally` putMVar v ()
                        return (v, tid)
 
-applyList :: [(a -> b)] -> a -> [b]
+applyList :: [(a -> b)]
+             -> a
+             -> [b]
 applyList = sequence
 
 toMaybe :: (a -> Bool)
@@ -36,3 +48,12 @@ delete' :: (Eq k, Hashable k)
            -> HashMap k v
            -> (HashMap k v, Maybe v)
 delete' k h = (H.delete k h, H.lookup k h)
+
+decodeJSON :: FromJSON a
+              => ByteString
+              -> Either String a
+decodeJSON str = fjson =<< parsed
+  where parsed = eitherResult . parse json' $ str
+        fjson v = case fromJSON v of
+                    Success x -> Right x
+                    Error e   -> Left e
