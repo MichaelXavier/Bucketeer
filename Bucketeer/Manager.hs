@@ -112,8 +112,8 @@ storeBucketManager bm = set managerKey serialized  >> return ()
 
 restoreBuckets :: Redis (Either String [Bucket])
 restoreBuckets = return . loadBM =<< get managerKey
-  where loadBM (Left _)        = Left "Redis returned unexpected response"
-        loadBM (Right Nothing)   = Left "Could not find manager at bucketeer:manager"
+  where loadBM (Left _)          = Left "Redis returned unexpected response"
+        loadBM (Right Nothing)   = Right []
         loadBM (Right (Just bs)) = deserializeBucketManager bs
 
 

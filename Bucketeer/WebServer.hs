@@ -11,17 +11,21 @@ import Bucketeer.Persistence (remaining,
                               refill,
                               TickResult(..))
 import Bucketeer.Manager (BucketManager,
-                          defaultBucketManager)
+                          startBucketManager,
+                          restoreBuckets)
 import Bucketeer.Types
 import Bucketeer.WebServer.Util
 
 import Data.ByteString (ByteString(..))
+import Data.Text (Text(..))
 import Database.Redis (Connection,
                        connect,
                        runRedis,
                        defaultConnectInfo)
 import Network.Wai.Handler.Warp (run)
-import Data.Text (Text(..))
+import System.Exit (exitFailure)
+import System.IO (hPutStrLn,
+                  stderr)
 import Yesod
 
 data BucketeerWeb = BucketeerWeb { connection    :: Connection,
@@ -33,7 +37,7 @@ instance Yesod BucketeerWeb where
 --TODO: deletion of consumers, buckets?
 
 mkYesod "BucketeerWeb" [parseRoutes|
-  /consumers/#Consumer/buckets/#Feature        BucketR       GET POST
+  /consumers/#Consumer/buckets/#Feature        BucketR       GET POST DELETE
   /consumers/#Consumer/buckets/#Feature/tick   BucketTickR   POST
   /consumers/#Consumer/buckets/#Feature/refill BucketRefillR POST
   /consumers/#Consumer/buckets/#Feature/drain  BucketDrainR  POST
@@ -51,6 +55,11 @@ postBucketR :: Consumer
                -> Handler ()
 postBucketR cns feat = undefined 
 
+deleteBucketR :: Consumer
+                 -> Feature
+                 -> Handler ()
+deleteBucketR cns feat = undefined
+
 --TODO: handle throttle with statuscode
 postBucketTickR :: Consumer
                    -> Feature
@@ -59,7 +68,6 @@ postBucketTickR cns feat = repResponse . tickResponse cns feat =<< doTick =<< ge
   where doTick conn = liftIO $ runRedis conn $ tick cns feat
         repResponse = either jsonToRepJson jsonToRepJson 
 
---TODO: need manager
 postBucketRefillR :: Consumer
                      -> Feature
                      -> Handler ()
@@ -74,8 +82,10 @@ postBucketDrainR cns feat = doDrain =<< getConn
 
 main :: IO ()
 main = do conn <- connect defaultConnectInfo
-          run 3000 =<< toWaiApp (BucketeerWeb conn defaultBucketManager)
-
+          buckets <- either (exit) (return . id) =<< (runRedis conn $ restoreBuckets)
+          bm   <- startBucketManager buckets conn
+          run 3000 =<< toWaiApp (BucketeerWeb conn bm)
+  where exit str = hPutStrLn stderr str >> exitFailure
 
 ---- Helpers
 getConn = return . connection =<< getYesod
