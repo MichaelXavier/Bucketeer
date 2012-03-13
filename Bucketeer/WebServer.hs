@@ -57,7 +57,6 @@ getBucketR :: Consumer
 getBucketR cns feat = jsonToRepJson . RemainingResponse =<< doRemaining =<< getConn
   where doRemaining conn = liftIO $ runRedis conn $ remaining cns feat 
 
---TODO: need manager
 postBucketR :: Consumer
                -> Feature
                -> Handler ()
@@ -66,13 +65,11 @@ postBucketR cns feat = undefined
 deleteBucketR :: Consumer
                  -> Feature
                  -> Handler ()
-deleteBucketR cns feat = undefined
---deleteBucketR cns feat = do (newBM, maybeTid) <- revokeFeature cns feat =<< getBM
---                            forkIO . killThread <$> maybeTid
---                            --TODO: set newBM
---                            return ()
+deleteBucketR cns feat = liftIO . revoke =<< getBM
+  where revoke bmRef = atomicModifyIORef bmRef (revokeFeature cns feat) >>= maybeKill
+        maybeKill (Just tid) = killThread tid
+        maybeKill Nothing    = return ()
 
---TODO: handle throttle with statuscode
 postBucketTickR :: Consumer
                    -> Feature
                    -> Handler RepJson
@@ -94,9 +91,8 @@ postBucketDrainR cns feat = doDrain =<< getConn
 
 deleteConsumerR  :: Consumer
                     -> Handler ()
-deleteConsumerR cns = do tids <- liftIO . revoke =<< getBM
-                         liftIO $ mapM_ (forkIO . killThread) tids
-  where revoke bmRef = atomicModifyIORef bmRef (revokeConsumer cns)
+deleteConsumerR cns = liftIO . revoke =<< getBM
+  where revoke bmRef = atomicModifyIORef bmRef (revokeConsumer cns) >>= mapM_ (forkIO . killThread)
 
 main :: IO ()
 main = do conn <- connect defaultConnectInfo
