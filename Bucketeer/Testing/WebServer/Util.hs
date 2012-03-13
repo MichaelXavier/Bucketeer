@@ -20,7 +20,7 @@ specs = descriptions [describe_ResponseError_toJSON,
 
 describe_ResponseError_toJSON :: Specs
 describe_ResponseError_toJSON = describe "Bucketeer.WebServer.Util.ResponseError toJSON" [
-    it "formats the JSON properly" $ toJSONText re ~?= "{\"description\":\"Redo from start\",\"id\":\"Out of Cheese\"}"
+    it "formats the JSON properly" $ toJSONText re ~?= "{\"id\":\"Out of Cheese\",\"description\":\"Redo from start\"}"
   ]
   where re = ResponseError { errorId          = "Out of Cheese",
                              errorDescription = "Redo from start"}
