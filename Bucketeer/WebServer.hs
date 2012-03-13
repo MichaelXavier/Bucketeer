@@ -23,6 +23,9 @@ import Control.Concurrent (forkIO,
                            killThread)
 import Control.Monad.Reader (local)
 import Data.ByteString (ByteString(..))
+import Data.IORef (newIORef,
+                   IORef,
+                   atomicModifyIORef)
 import Data.Text (Text(..))
 import Database.Redis (Connection,
                        connect,
@@ -35,14 +38,10 @@ import System.IO (hPutStrLn,
 import Yesod
 import Yesod.Handler
 
---TODO: store an IORef here instead
 data BucketeerWeb = BucketeerWeb { connection    :: Connection,
-                                   bucketManager :: BucketManager }
+                                   bucketManager :: IORef BucketManager }
 
 instance Yesod BucketeerWeb where
-
-
---TODO: deletion of consumers, buckets?
 
 mkYesod "BucketeerWeb" [parseRoutes|
   /consumers/#Consumer                         ConsumerR     DELETE
@@ -67,10 +66,11 @@ postBucketR cns feat = undefined
 deleteBucketR :: Consumer
                  -> Feature
                  -> Handler ()
-deleteBucketR cns feat = do (newBM, maybeTid) <- revokeFeature cns feat =<< getBM
-                            forkIO . killThread <$> maybeTid
-                            --TODO: set newBM
-                            return ()
+deleteBucketR cns feat = undefined
+--deleteBucketR cns feat = do (newBM, maybeTid) <- revokeFeature cns feat =<< getBM
+--                            forkIO . killThread <$> maybeTid
+--                            --TODO: set newBM
+--                            return ()
 
 --TODO: handle throttle with statuscode
 postBucketTickR :: Consumer
@@ -92,22 +92,19 @@ postBucketDrainR :: Consumer
 postBucketDrainR cns feat = doDrain =<< getConn
   where doDrain conn = liftIO $ runRedis conn $ drain cns feat
 
-
 deleteConsumerR  :: Consumer
-                    -> Feature
                     -> Handler ()
-deleteConsumerR cns = do (newBM, tids) <- revokeConsumer cns =<< getBM
-                         mapM_ forkIO . killThread tids
-                         --TODO: set newBM
-                         return ()
+deleteConsumerR cns = do tids <- liftIO . revoke =<< getBM
+                         liftIO $ mapM_ (forkIO . killThread) tids
+  where revoke bmRef = atomicModifyIORef bmRef (revokeConsumer cns)
 
 main :: IO ()
 main = do conn <- connect defaultConnectInfo
           buckets <- either (exit) (return . id) =<< (runRedis conn $ restoreBuckets)
-          bm   <- startBucketManager buckets conn
+          bm   <- newIORef =<< startBucketManager buckets conn
           run 3000 =<< toWaiApp (BucketeerWeb conn bm)
   where exit str = hPutStrLn stderr str >> exitFailure
 
 ---- Helpers
-getConn = return . connection =<< getYesod
-getBM = return . bucketManager =<< getYesod
+getConn = return . connection    =<< getYesod
+getBM   = return . bucketManager =<< getYesod
