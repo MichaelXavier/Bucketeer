@@ -72,6 +72,7 @@ cleanup BucketeerWeb { connection    = conn,
                        bucketManager = bmRef } = do bm <- readIORef bmRef
                                                     runRedis conn $ storeBucketManager bm
 
+--TODO: this should probably return a 404 if not found
 getBucketR :: Consumer
               -> Feature
               -> Handler RepJson
