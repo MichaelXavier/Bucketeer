@@ -14,16 +14,19 @@ import Bucketeer.Manager (BucketManager,
                           revokeFeature,
                           revokeConsumer,
                           startBucketManager,
+                          storeBucketManager,
                           restoreBuckets)
 import Bucketeer.Types
 import Bucketeer.WebServer.Util
 
 import Control.Applicative ((<$>))
+import Control.Exception (finally)
 import Control.Concurrent (forkIO,
                            killThread)
 import Control.Monad.Reader (local)
 import Data.ByteString (ByteString(..))
 import Data.IORef (newIORef,
+                   readIORef,
                    IORef,
                    atomicModifyIORef)
 import Data.Maybe (isJust)
@@ -54,13 +57,20 @@ mkYesod "BucketeerWeb" [parseRoutes|
 |]
 
 main :: IO ()
-main = do conn <- connect defaultConnectInfo
+main = do conn    <- connect defaultConnectInfo
           buckets <- either (exit) (return . id) =<< (runRedis conn $ restoreBuckets)
-          bm   <- newIORef =<< startBucketManager buckets conn
-          run 3000 =<< toWaiApp (BucketeerWeb conn bm)
+          bmRef   <- newIORef =<< startBucketManager buckets conn
+          let foundation = BucketeerWeb conn bmRef
+          (run 3000 =<< toWaiApp foundation) `finally` (cleanup foundation)
   where exit str = hPutStrLn stderr str >> exitFailure
 
 ---- Routes
+
+cleanup :: BucketeerWeb
+           -> IO ()
+cleanup BucketeerWeb { connection    = conn,
+                       bucketManager = bmRef } = do bm <- readIORef bmRef
+                                                    runRedis conn $ storeBucketManager bm
 
 getBucketR :: Consumer
               -> Feature
