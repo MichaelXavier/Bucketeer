@@ -26,6 +26,7 @@ import Data.ByteString (ByteString(..))
 import Data.IORef (newIORef,
                    IORef,
                    atomicModifyIORef)
+import Data.Maybe (isJust)
 import Data.Text (Text(..))
 import Database.Redis (Connection,
                        connect,
@@ -37,6 +38,7 @@ import System.IO (hPutStrLn,
                   stderr)
 import Yesod
 import Yesod.Handler
+import Yesod.Request
 
 data BucketeerWeb = BucketeerWeb { connection    :: Connection,
                                    bucketManager :: IORef BucketManager }
@@ -51,6 +53,15 @@ mkYesod "BucketeerWeb" [parseRoutes|
   /consumers/#Consumer/buckets/#Feature/drain  BucketDrainR  POST
 |]
 
+main :: IO ()
+main = do conn <- connect defaultConnectInfo
+          buckets <- either (exit) (return . id) =<< (runRedis conn $ restoreBuckets)
+          bm   <- newIORef =<< startBucketManager buckets conn
+          run 3000 =<< toWaiApp (BucketeerWeb conn bm)
+  where exit str = hPutStrLn stderr str >> exitFailure
+
+---- Routes
+
 getBucketR :: Consumer
               -> Feature
               -> Handler RepJson
@@ -60,7 +71,11 @@ getBucketR cns feat = jsonToRepJson . RemainingResponse =<< doRemaining =<< getC
 postBucketR :: Consumer
                -> Feature
                -> Handler ()
-postBucketR cns feat = undefined 
+postBucketR cns feat = do cap  <- lookupPostParam "capacity"
+                          rate <- lookupPostParam "restore_rate"
+                          if (isJust cap && isJust rate) then sendResponseCreated route
+                          else                                invalidArgs ["capacity", "restore_rate"]
+  where route = BucketR cns feat
 
 deleteBucketR :: Consumer
                  -> Feature
@@ -94,13 +109,7 @@ deleteConsumerR  :: Consumer
 deleteConsumerR cns = liftIO . revoke =<< getBM
   where revoke bmRef = atomicModifyIORef bmRef (revokeConsumer cns) >>= mapM_ (forkIO . killThread)
 
-main :: IO ()
-main = do conn <- connect defaultConnectInfo
-          buckets <- either (exit) (return . id) =<< (runRedis conn $ restoreBuckets)
-          bm   <- newIORef =<< startBucketManager buckets conn
-          run 3000 =<< toWaiApp (BucketeerWeb conn bm)
-  where exit str = hPutStrLn stderr str >> exitFailure
-
 ---- Helpers
 getConn = return . connection    =<< getYesod
+
 getBM   = return . bucketManager =<< getYesod
