@@ -17,6 +17,8 @@ import Database.Redis (connect,
                        defaultConnectInfo)
 import qualified Test.Hspec as HS
 import qualified Test.Hspec.Monadic as HSM
+import System.Exit (ExitCode(..),
+                    exitWith)
 import Yesod (toWaiApp)
 
 
@@ -26,7 +28,15 @@ main = do conn <- connect defaultConnectInfo
           let foundation = BucketeerWeb conn bmRef
           app <- toWaiApp foundation
           mspecs <- M.specs
-          --TODO: rig up exit status
-          HS.hspec $ P.specs conn ++ U.specs ++ WU.specs ++ T.specs ++ mspecs 
-          HSM.hspec $ WS.specs app
-          return ()
+          runSpecs [HS.hspecB $ P.specs conn ++ U.specs ++ WU.specs ++ T.specs ++ mspecs,
+                    HSM.hspecB $ WS.specs app]
+
+---- Helpers
+runSpecs :: [IO Bool]
+            -> IO ()
+runSpecs specs = exitWith . toExitCode . all id =<< sequence specs
+
+toExitCode :: Bool
+              -> ExitCode
+toExitCode True  = ExitSuccess
+toExitCode False = ExitFailure 1
