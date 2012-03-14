@@ -3,7 +3,8 @@
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Bucketeer.WebServer (main) where
+module Bucketeer.WebServer (main,
+                            BucketeerWeb(..)) where
 
 import Bucketeer.Persistence (remaining,
                               tick,
@@ -23,7 +24,6 @@ import Control.Applicative ((<$>))
 import Control.Exception (finally)
 import Control.Concurrent (forkIO,
                            killThread)
-import Control.Monad.Reader (local)
 import Data.ByteString (ByteString(..))
 import Data.IORef (newIORef,
                    readIORef,
