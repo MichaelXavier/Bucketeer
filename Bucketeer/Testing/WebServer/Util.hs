@@ -6,6 +6,7 @@ import Bucketeer.WebServer.Util
 import Bucketeer.Testing.TestHelpers (toJSONText)
 
 import Data.ByteString (ByteString(..))
+import Data.Text.Lazy (isInfixOf)
 import Test.Hspec (Specs,
                    describe,
                    descriptions,
@@ -20,9 +21,11 @@ specs = descriptions [describe_ResponseError_toJSON,
 
 describe_ResponseError_toJSON :: Specs
 describe_ResponseError_toJSON = describe "Bucketeer.WebServer.Util.ResponseError toJSON" [
-    it "formats the JSON properly" $ toJSONText re ~?= "{\"id\":\"Out of Cheese\",\"description\":\"Redo from start\"}"
+    it "includes the id" $ isInfixOf "\"id\":\"Out of Cheese\"" text ~?= True,
+    it "includes the id" $ isInfixOf "\"description\":\"Redo from start\"" text ~?= True
   ]
-  where re = ResponseError { errorId          = "Out of Cheese",
+  where text = toJSONText re
+        re = ResponseError { errorId          = "Out of Cheese",
                              errorDescription = "Redo from start"}
 
 describe_RemainingResponse_toJSON :: Specs
