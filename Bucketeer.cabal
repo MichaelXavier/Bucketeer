@@ -16,7 +16,7 @@ Executable wmpoller
                      bytestring == 0.9.*,
                      unbounded-delays == 0.1.*,
                      hedis == 0.4.*,
-                     unordered-containers == 0.2.*
+                     unordered-containers == 0.2.1*
                      
   GHC-Options: -Wall -O3 -threaded
 
