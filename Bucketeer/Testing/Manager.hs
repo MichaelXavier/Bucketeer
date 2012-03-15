@@ -24,7 +24,8 @@ specs :: IO Specs
 specs = do tid <- myThreadId
            return $ descriptions [describe_addBucket tid,
                                   describe_revokeFeature tid,
-                                  describe_revokeConsumer tid]
+                                  describe_revokeConsumer tid,
+                                  describe_featureExists tid]
                                   
 
 describe_addBucket :: ThreadId
@@ -58,6 +59,19 @@ describe_revokeConsumer tid = describe "Bucketeer.Manager.revokeConsumer" [
                                                            (cns, Feature "kill_me"),
                                                            (Consumer "joe", Feature "spare_me")]
         onlyJoe = singleton (Consumer "joe", Feature "spare_me") $ bi tid
+
+describe_featureExists :: ThreadId
+                          -> Specs
+describe_featureExists tid = describe "Bucketeer.Manager.featureExists" [
+    it "returns False on an empty bucket manager" $
+      featureExists cns feat bm ~?= False,
+    it "returns True if feature/consumer pair exists" $
+      featureExists cns feat (bm' tid) ~?= True,
+    it "returns False if consumer does not exist" $
+      featureExists bob feat (bm' tid) ~?= False,
+    it "returns False if feature does not exist" $
+      featureExists cns (Feature "nope") (bm' tid) ~?= False
+  ]
 
 ---- Helpers
 bm :: BucketManager

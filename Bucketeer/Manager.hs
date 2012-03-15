@@ -117,7 +117,6 @@ restoreBuckets = return . loadBM =<< get managerKey
         loadBM (Right Nothing)   = Right []
         loadBM (Right (Just bs)) = deserializeBucketManager bs
 
---SPECME
 featureExists :: Consumer
                  -> Feature
                  -> BucketManager
