@@ -12,6 +12,7 @@ import Bucketeer.Persistence (remaining,
                               refill,
                               TickResult(..))
 import Bucketeer.Manager (BucketManager,
+                          featureExists,
                           revokeFeature,
                           revokeConsumer,
                           startBucketManager,
@@ -21,9 +22,11 @@ import Bucketeer.Types
 import Bucketeer.WebServer.Util
 
 import Control.Applicative ((<$>))
-import Control.Exception (finally)
 import Control.Concurrent (forkIO,
                            killThread)
+import Control.Exception (finally)
+import Control.Monad (when)
+import Data.Aeson (toJSON)
 import Data.ByteString (ByteString(..))
 import Data.IORef (newIORef,
                    readIORef,
@@ -31,10 +34,13 @@ import Data.IORef (newIORef,
                    atomicModifyIORef)
 import Data.Maybe (isJust)
 import Data.Text (Text(..))
+import qualified Data.Text as T
 import Database.Redis (Connection,
                        connect,
                        runRedis,
                        defaultConnectInfo)
+import Network.HTTP.Types (Status,
+                           notFound404)
 import Network.Wai.Handler.Warp (run)
 import System.Exit (exitFailure)
 import System.IO (hPutStrLn,
@@ -124,3 +130,24 @@ deleteConsumerR cns = liftIO . revoke =<< getBM
 getConn = return . connection    =<< getYesod
 
 getBM   = return . bucketManager =<< getYesod
+
+checkFeature cns feat = do bm <- liftIO . readIORef =<< getBM
+                           if (not $ featureExists cns feat bm) then notFound
+                           else                                      return ()
+  where notFound = sendError notFound404 [("Feature Not Found", T.concat ["Could not find feature (",
+                                                                          showT cns,
+                                                                          ", ",
+                                                                          showT feat,
+                                                                          ")" ])]
+
+showT :: Show a
+         => a
+         -> Text
+showT = T.pack . show
+  
+sendError :: Status
+             -> [(Text, Text)]
+             -> GHandler s m a
+sendError status errs = sendResponseStatus status repErrs
+  where repErrs        = RepJson . toContent . toJSON $ responseErrors
+        responseErrors = map (uncurry ResponseError) errs
