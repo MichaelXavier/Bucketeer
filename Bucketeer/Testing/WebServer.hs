@@ -37,7 +37,7 @@ specs :: Application
 specs app = do
   let webApp = flip runSession $ app
   describe "GET request to a bogus endpoint" $ do
-    let path = "consumers/bogus"
+    let path = "bogus"
 
     it "returns a 404" $ webApp $
       assertStatus 404 =<< request (setRawPathInfo getRequest path)

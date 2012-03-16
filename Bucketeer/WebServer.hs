@@ -34,6 +34,7 @@ import Data.IORef (newIORef,
                    atomicModifyIORef)
 import Data.Maybe (isJust)
 import Data.Text (Text(..))
+import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text as T
 import Database.Redis (Connection,
                        connect,
@@ -142,19 +143,18 @@ getConn = return . connection    =<< getYesod
 
 getBM   = return . bucketManager =<< getYesod
 
-checkFeature cns feat inner = do bm <- liftIO . readIORef =<< getBM
-                                 if (not $ featureExists cns feat bm) then notFound
-                                 else                                      inner
+checkFeature cns@(Consumer c)
+             feat@(Feature f) inner = do bm <- liftIO . readIORef =<< getBM
+                                         if (not $ featureExists cns feat bm) then notFound
+                                         else                                      inner
   where notFound = sendError notFound404 [("Feature Not Found", T.concat ["Could not find feature (",
-                                                                          showT cns,
+                                                                          b2t c,
                                                                           ", ",
-                                                                          showT feat,
+                                                                          b2t f,
                                                                           ")" ])]
-
-showT :: Show a
-         => a
-         -> Text
-showT = T.pack . show
+b2t :: ByteString
+       -> Text
+b2t = decodeUtf8
   
 sendError :: Status
              -> [(Text, Text)]
