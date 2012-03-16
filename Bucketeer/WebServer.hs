@@ -41,7 +41,9 @@ import Database.Redis (Connection,
                        defaultConnectInfo)
 import Network.HTTP.Types (Status,
                            notFound404)
+import Network.Wai (Middleware)
 import Network.Wai.Handler.Warp (run)
+import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import System.Exit (exitFailure)
 import System.IO (hPutStrLn,
                   stderr)
@@ -49,10 +51,16 @@ import Yesod
 import Yesod.Handler
 import Yesod.Request
 
+----DEBUG IMPORTS
+import qualified Data.HashMap.Strict as H
+import Data.Text (pack)
+
 data BucketeerWeb = BucketeerWeb { connection    :: Connection,
                                    bucketManager :: IORef BucketManager }
 
 instance Yesod BucketeerWeb where
+  approot = ApprootRelative
+  logLevel _ = LevelDebug
 
 mkYesod "BucketeerWeb" [parseRoutes|
   /consumers/#Consumer                         ConsumerR     DELETE
@@ -67,8 +75,12 @@ main = do conn    <- connect defaultConnectInfo
           buckets <- either (exit) (return . id) =<< (runRedis conn $ restoreBuckets)
           bmRef   <- newIORef =<< startBucketManager buckets conn
           let foundation = BucketeerWeb conn bmRef
-          (run 3000 =<< toWaiApp foundation) `finally` (cleanup foundation)
+          app <- toWaiApp foundation
+          (run 3000 $ logWare app) `finally` (cleanup foundation)
   where exit str = hPutStrLn stderr str >> exitFailure
+
+logWare :: Middleware
+logWare = logStdoutDev
 
 ---- Routes
 
@@ -78,11 +90,10 @@ cleanup BucketeerWeb { connection    = conn,
                        bucketManager = bmRef } = do bm <- readIORef bmRef
                                                     runRedis conn $ storeBucketManager bm
 
---TODO: this should probably return a 404 if not found
 getBucketR :: Consumer
               -> Feature
               -> Handler RepJson
-getBucketR cns feat = jsonToRepJson . RemainingResponse =<< doRemaining =<< getConn
+getBucketR cns feat = checkFeature cns feat $ jsonToRepJson . RemainingResponse =<< doRemaining =<< getConn
   where doRemaining conn = liftIO $ runRedis conn $ remaining cns feat 
 
 postBucketR :: Consumer
@@ -131,9 +142,9 @@ getConn = return . connection    =<< getYesod
 
 getBM   = return . bucketManager =<< getYesod
 
-checkFeature cns feat = do bm <- liftIO . readIORef =<< getBM
-                           if (not $ featureExists cns feat bm) then notFound
-                           else                                      return ()
+checkFeature cns feat inner = do bm <- liftIO . readIORef =<< getBM
+                                 if (not $ featureExists cns feat bm) then notFound
+                                 else                                      inner
   where notFound = sendError notFound404 [("Feature Not Found", T.concat ["Could not find feature (",
                                                                           showT cns,
                                                                           ", ",

@@ -15,6 +15,7 @@ import Control.Applicative
 import Data.IORef (newIORef)
 import Database.Redis (connect,
                        defaultConnectInfo)
+import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import qualified Test.Hspec as HS
 import qualified Test.Hspec.Monadic as HSM
 import System.Exit (ExitCode(..),
@@ -27,8 +28,9 @@ main = do conn <- connect defaultConnectInfo
           bmRef <- newIORef =<< startBucketManager [] conn
           let foundation = BucketeerWeb conn bmRef
           app <- toWaiApp foundation
+          let loggedApp = logStdoutDev app
           mspecs <- M.specs
-          runSpecs [HS.hspecB $ P.specs conn ++ U.specs ++ WU.specs ++ T.specs ++ mspecs,
+          runSpecs [--HS.hspecB $ P.specs conn ++ U.specs ++ WU.specs ++ T.specs ++ mspecs,
                     HSM.hspecB $ WS.specs app]
 
 ---- Helpers
