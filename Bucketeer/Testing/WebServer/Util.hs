@@ -1,10 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Bucketeer.Testing.WebServer.Util (specs) where
 
 import Bucketeer.Types
 import Bucketeer.WebServer.Util
 import Bucketeer.Testing.TestHelpers (toJSONText)
 
+import Data.String.QQ (s)
 import Data.ByteString (ByteString(..))
 import Data.Text.Lazy (isInfixOf)
 import Test.Hspec (Specs,
@@ -21,8 +23,8 @@ specs = descriptions [describe_ResponseError_toJSON,
 
 describe_ResponseError_toJSON :: Specs
 describe_ResponseError_toJSON = describe "Bucketeer.WebServer.Util.ResponseError toJSON" [
-    it "includes the id" $ isInfixOf "\"id\":\"Out of Cheese\"" text ~?= True,
-    it "includes the id" $ isInfixOf "\"description\":\"Redo from start\"" text ~?= True
+    it "includes the id" $ isInfixOf [s|"id":"Out of Cheese"|] text ~?= True,
+    it "includes the id" $ isInfixOf [s|"description":"Redo from start"|] text ~?= True
   ]
   where text = toJSONText re
         re = ResponseError { errorId          = "Out of Cheese",
@@ -30,7 +32,7 @@ describe_ResponseError_toJSON = describe "Bucketeer.WebServer.Util.ResponseError
 
 describe_RemainingResponse_toJSON :: Specs
 describe_RemainingResponse_toJSON = describe "Bucketeer.WebServer.Util.RemainingResponse toJSON" [
-    it "formats the JSON properly" $ toJSONText rr ~?= "{\"remaining\":3}"
+    it "formats the JSON properly" $ toJSONText rr ~?= [s|{"remaining":3}|]
   ]
   where rr = RemainingResponse 3
 
