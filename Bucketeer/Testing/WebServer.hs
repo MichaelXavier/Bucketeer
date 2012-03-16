@@ -2,18 +2,15 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Bucketeer.Testing.WebServer (specs) where
 
-import Control.Applicative ((<$>),
-                            (<*>),
-                            pure)
-import Database.Redis (connect,
-                       defaultConnectInfo)
-
 import Bucketeer.Manager (startBucketManager)
 import Bucketeer.Types
 import Bucketeer.WebServer (BucketeerWeb(..))
 
+import Data.ByteString (ByteString)
 import Data.IORef (newIORef)
 import Database.Redis (Connection)
+import Database.Redis (connect,
+                       defaultConnectInfo)
 import Network.HTTP.Types (methodPost,
                            methodGet,
                            methodDelete,
@@ -50,7 +47,7 @@ specs app = do
       assertStatus 404 =<< request (setRawPathInfo deleteRequest path)
 
   describe "DELETE request to existing consumer" $ do
-    let path = "consumers/bogus"
+    let path = "consumers/summer"
 
     it "returns a 204" $ 
       pending "implementation"
@@ -66,6 +63,8 @@ specs app = do
       assertBody [s|[{"description":"Could not find feature (summer, bogus)","id":"Feature Not Found"}]|] =<< request (setRawPathInfo getRequest path)
 
   describe "GET to existing bucket" $ do
+    let path = "consumers/summer/buckets/barrel_roll"
+
     it "returns a 200" $ 
       pending "implementation"
     it "renders the bucket" $ 
@@ -73,18 +72,19 @@ specs app = do
 
 
   --- POST /consumers/#Consumer/buckets
---  describe "POST to non-existant consumer" $ do
---    let req = defaultRequest { rawPathInfo   = "/consumers/summer/buckets/bogus",
---                               requestMethod = methodPost }
---    let sreq = SRequest req ""
---
---    it "returns a 404" $ webApp $
---      assertStatus 404 =<< srequest sreq
---
---    it "returns an error message" $ webApp $
---      assertBody "TODO" =<< srequest sreq --FIXME
+  describe "POST to non-existant consumer" $ do
+    let path = "consumers/bogus/buckets/barrel_roll"
+    let sreq = SRequest (setRawPathInfo postRequest path) ""
+
+    it "returns a 404" $ webApp $
+      assertStatus 404 =<< srequest sreq
+
+    it "returns an error message" $ webApp $
+      assertBody [s|[{"description":"Could not find consumer bogus","id":"Consumer Not Found"}]|] =<< srequest sreq
 --
 --  describe "POST to existing consumer, all params" $ do
+    -- let path = "consumers/summer/buckets/barrel_roll"
+
 --    it "returns a 201" $ 
 --      pending "implementation"
 --    it "renders the bucket" $ 
@@ -185,10 +185,13 @@ specs app = do
 --      pending "implementation"
 
 getRequest :: Request
-getRequest = baseRequest { requestMethod  = methodGet }
+getRequest = baseRequest { requestMethod = methodGet }
+
+postRequest :: Request
+postRequest = baseRequest { requestMethod = methodPost }
                            
 deleteRequest :: Request
-deleteRequest = baseRequest { requestMethod  = methodDelete }
+deleteRequest = baseRequest { requestMethod = methodDelete }
 
 baseRequest :: Request
 baseRequest = defaultRequest { requestHeaders = [headerAccept "application/json"] }

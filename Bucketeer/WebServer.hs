@@ -101,10 +101,10 @@ getBucketR cns feat = checkFeature cns feat $ jsonToRepJson . RemainingResponse 
 postBucketR :: Consumer
                -> Feature
                -> Handler ()
-postBucketR cns feat = checkFeature cns feat $ do cap  <- lookupPostParam "capacity"
-                                                  rate <- lookupPostParam "restore_rate"
-                                                  if (isJust cap && isJust rate) then sendResponseCreated route
-                                                  else                                invalidArgs ["capacity", "restore_rate"]
+postBucketR cns feat = checkConsumer cns $ do cap  <- lookupPostParam "capacity"
+                                              rate <- lookupPostParam "restore_rate"
+                                              if (isJust cap && isJust rate) then sendResponseCreated route
+                                              else                                invalidArgs ["capacity", "restore_rate"]
   where route = BucketR cns feat
 
 deleteBucketR :: Consumer
