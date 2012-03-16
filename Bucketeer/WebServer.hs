@@ -13,6 +13,7 @@ import Bucketeer.Persistence (remaining,
                               TickResult(..))
 import Bucketeer.Manager (BucketManager,
                           featureExists,
+                          consumerExists,
                           revokeFeature,
                           revokeConsumer,
                           startBucketManager,
@@ -100,16 +101,16 @@ getBucketR cns feat = checkFeature cns feat $ jsonToRepJson . RemainingResponse 
 postBucketR :: Consumer
                -> Feature
                -> Handler ()
-postBucketR cns feat = do cap  <- lookupPostParam "capacity"
-                          rate <- lookupPostParam "restore_rate"
-                          if (isJust cap && isJust rate) then sendResponseCreated route
-                          else                                invalidArgs ["capacity", "restore_rate"]
+postBucketR cns feat = checkFeature cns feat $ do cap  <- lookupPostParam "capacity"
+                                                  rate <- lookupPostParam "restore_rate"
+                                                  if (isJust cap && isJust rate) then sendResponseCreated route
+                                                  else                                invalidArgs ["capacity", "restore_rate"]
   where route = BucketR cns feat
 
 deleteBucketR :: Consumer
                  -> Feature
                  -> Handler ()
-deleteBucketR cns feat = liftIO . revoke =<< getBM
+deleteBucketR cns feat = checkFeature cns feat $ liftIO . revoke =<< getBM
   where revoke bmRef = atomicModifyIORef bmRef (revokeFeature cns feat) >>= maybeKill
         maybeKill (Just tid) = killThread tid
         maybeKill Nothing    = return ()
@@ -135,7 +136,7 @@ postBucketDrainR cns feat = doDrain =<< getConn
 
 deleteConsumerR  :: Consumer
                     -> Handler ()
-deleteConsumerR cns = liftIO . revoke =<< getBM
+deleteConsumerR cns = checkConsumer cns $ liftIO . revoke =<< getBM
   where revoke bmRef = atomicModifyIORef bmRef (revokeConsumer cns) >>= mapM_ (forkIO . killThread)
 
 ---- Helpers
@@ -143,15 +144,23 @@ getConn = return . connection    =<< getYesod
 
 getBM   = return . bucketManager =<< getYesod
 
+readBM = liftIO . readIORef =<< getBM
+
+checkConsumer cns@(Consumer c) inner = switch =<< readBM
+  where switch bm = if check bm then notFound else inner
+        check     = not . consumerExists cns
+        notFound  = sendError notFound404 [("Consumer Not Found", T.concat ["Could not find consumer ", b2t c])]
+
 checkFeature cns@(Consumer c)
-             feat@(Feature f) inner = do bm <- liftIO . readIORef =<< getBM
-                                         if (not $ featureExists cns feat bm) then notFound
-                                         else                                      inner
-  where notFound = sendError notFound404 [("Feature Not Found", T.concat ["Could not find feature (",
+             feat@(Feature f) inner = do switch =<< readBM
+  where switch bm = if check bm then notFound else inner
+        check     = not . featureExists cns feat
+        notFound  = sendError notFound404 [("Feature Not Found", T.concat ["Could not find feature (",
                                                                           b2t c,
                                                                           ", ",
                                                                           b2t f,
                                                                           ")" ])]
+
 b2t :: ByteString
        -> Text
 b2t = decodeUtf8

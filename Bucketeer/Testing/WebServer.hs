@@ -43,14 +43,17 @@ specs app = do
       assertStatus 404 =<< request (setRawPathInfo getRequest path)
 
   --- DELETE /consumers/#Consumer
-  --describe "DELETE to non-existant consumer" $ do
-  --  let req = defaultRequest { rawPathInfo = "/consumers/bogus" }
-  --  it "non-existant consumer: returns a 404" $ webApp $
-  --    assertStatus 404 =<< request req
+  describe "DELETE to non-existant consumer" $ do
+    let path = "consumers/bogus"
 
-  --describe "DELETE request to existing consumer" $ do
-  --  it "returns a 204" $ 
-  --    pending "implementation"
+    it "non-existant consumer: returns a 404" $ webApp $
+      assertStatus 404 =<< request (setRawPathInfo deleteRequest path)
+
+  describe "DELETE request to existing consumer" $ do
+    let path = "consumers/bogus"
+
+    it "returns a 204" $ 
+      pending "implementation"
 
 
   --- GET /consumers/#Consumer/buckets/#Feature
@@ -182,5 +185,10 @@ specs app = do
 --      pending "implementation"
 
 getRequest :: Request
-getRequest = defaultRequest { requestMethod  = methodGet,
-                              requestHeaders = [headerAccept "application/json"] }
+getRequest = baseRequest { requestMethod  = methodGet }
+                           
+deleteRequest :: Request
+deleteRequest = baseRequest { requestMethod  = methodDelete }
+
+baseRequest :: Request
+baseRequest = defaultRequest { requestHeaders = [headerAccept "application/json"] }

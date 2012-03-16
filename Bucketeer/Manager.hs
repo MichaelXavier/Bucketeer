@@ -11,6 +11,7 @@ module Bucketeer.Manager (BucketManager(..),
                           addBucket,
                           revokeFeature,
                           featureExists,
+                          consumerExists,
                           revokeConsumer) where
 
 import Bucketeer.Persistence (restore)
@@ -122,6 +123,12 @@ featureExists :: Consumer
                  -> BucketManager
                  -> Bool
 featureExists = curry H.member
+
+consumerExists :: Consumer
+                  -> BucketManager
+                  -> Bool
+consumerExists cns = any cnsMatch . H.keys
+  where cnsMatch = (==cns) . fst
 
 ---- Helpers
 updateBI :: Bucket -> BucketInterface -> BucketInterface
