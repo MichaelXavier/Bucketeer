@@ -109,16 +109,15 @@ specs app = do
 --      pending "implementation"
 --
 --
---  --- DELETE /consumers/#Consumer/buckets/#Bucket
---  describe "DELETE to non-existant bucket" $ do
---    let req = defaultRequest { rawPathInfo   = "/consumers/summer/buckets/bogus",
---                               requestMethod = methodDelete }
---
---    it "returns a 404" $ webApp $
---      assertStatus 404 =<< request req
---
---    it "returns an error message" $ webApp $
---      assertBody "TODO" =<< request req --FIXME
+  --- DELETE /consumers/#Consumer/buckets/#Bucket
+  describe "DELETE to non-existant bucket" $ do
+    let path = "consumers/summer/buckets/bogus"
+
+    it "returns a 404" $ webApp $
+      assertStatus 404 =<< request (setRawPathInfo deleteRequest path)
+
+    it "returns an error message" $ webApp $
+      assertBody [s|[{"description":"Could not find feature (summer, bogus)","id":"Feature Not Found"}]|] =<< request (setRawPathInfo deleteRequest path)
 --
 --  describe "DELETE to existing bucket" $ do
 --    it "returns 204" $ 
@@ -128,16 +127,16 @@ specs app = do
 --    it "revokes the bucket in redis" $ 
 --      pending "implementation"
 --
---  --- POST /consumers/#Consumer/buckets/#Bucket/tick
---  describe "POST to non-existant bucket tick" $ do
---    let req = defaultRequest { rawPathInfo   = "/consumers/summer/buckets/bogus/tick",
---                               requestMethod = methodPost }
---
---    it "returns a 404" $ webApp $
---      assertStatus 404 =<< request req
---
---    it "returns an error message" $ webApp $
---      assertBody "TODO" =<< request req --FIXME
+  --- POST /consumers/#Consumer/buckets/#Bucket/tick
+  describe "POST to non-existant bucket tick" $ do
+    let path = "consumers/summer/buckets/bogus/tick"
+    let sreq = SRequest (setRawPathInfo postRequest path) ""
+
+    it "returns a 404" $ webApp $
+      assertStatus 404 =<< srequest sreq
+
+    it "returns an error message" $ webApp $
+      assertBody [s|[{"description":"Could not find feature (summer, bogus)","id":"Feature Not Found"}]|] =<< srequest sreq
 --
 --
 --  describe "POST to existing bucket tick" $ do
@@ -147,16 +146,16 @@ specs app = do
 --      pending "implementation"
 --
 --
---  --- POST /consumers/#Consumer/buckets/#Bucket/refill
---  describe "POST to non-existant bucket refill" $ do
---    let req = defaultRequest { rawPathInfo   = "/consumers/summer/buckets/bogus/refill",
---                               requestMethod = methodPost }
---
---    it "returns a 404" $ webApp $
---      assertStatus 404 =<< request req
---
---    it "returns an error message" $ webApp $
---      assertBody "TODO" =<< request req --FIXME
+  --- POST /consumers/#Consumer/buckets/#Bucket/refill
+  describe "POST to non-existant bucket refill" $ do
+    let path = "consumers/summer/buckets/bogus/refill"
+    let sreq = SRequest (setRawPathInfo postRequest path) ""
+
+    it "returns a 404" $ webApp $
+      assertStatus 404 =<< srequest sreq
+
+    it "returns an error message" $ webApp $
+      assertBody [s|[{"description":"Could not find feature (summer, bogus)","id":"Feature Not Found"}]|] =<< srequest sreq
 --
 --
 --  describe "POST to existing bucket refill" $ do
@@ -167,15 +166,15 @@ specs app = do
 --
 --
 --  --- POST /consumers/#Consumer/buckets/#Bucket/drain
---  describe "POST to non-existant bucket drain" $ do
---    let req = defaultRequest { rawPathInfo   = "/consumers/summer/buckets/bogus/drain",
---                               requestMethod = methodPost }
---
---    it "returns a 404" $ webApp $
---      assertStatus 404 =<< request req
---
---    it "returns an error message" $ webApp $
---      assertBody "TODO" =<< request req --FIXME
+  describe "POST to non-existant bucket drain" $ do
+    let path = "consumers/summer/buckets/bogus/drain"
+    let sreq = SRequest (setRawPathInfo postRequest path) ""
+
+    it "returns a 404" $ webApp $
+      assertStatus 404 =<< srequest sreq
+
+    it "returns an error message" $ webApp $
+      assertBody [s|[{"description":"Could not find feature (summer, bogus)","id":"Feature Not Found"}]|] =<< srequest sreq
 --
 --
 --  describe "POST to existing bucket drain" $ do

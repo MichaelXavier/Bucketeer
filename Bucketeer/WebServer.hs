@@ -118,20 +118,20 @@ deleteBucketR cns feat = checkFeature cns feat $ liftIO . revoke =<< getBM
 postBucketTickR :: Consumer
                    -> Feature
                    -> Handler RepJson
-postBucketTickR cns feat = repResponse . tickResponse cns feat =<< doTick =<< getConn
+postBucketTickR cns feat = checkFeature cns feat $ repResponse . tickResponse cns feat =<< doTick =<< getConn
   where doTick conn = liftIO $ runRedis conn $ tick cns feat
         repResponse = either jsonToRepJson jsonToRepJson 
 
 postBucketRefillR :: Consumer
                      -> Feature
                      -> Handler ()
-postBucketRefillR cns feat = doRefill =<< getConn
+postBucketRefillR cns feat = checkFeature cns feat $ doRefill =<< getConn
   where doRefill conn = liftIO $ runRedis conn $ refill cns feat 15
 
 postBucketDrainR :: Consumer
                     -> Feature
                     -> Handler ()
-postBucketDrainR cns feat = doDrain =<< getConn
+postBucketDrainR cns feat = checkFeature cns feat $ doDrain =<< getConn
   where doDrain conn = liftIO $ runRedis conn $ drain cns feat
 
 deleteConsumerR  :: Consumer
