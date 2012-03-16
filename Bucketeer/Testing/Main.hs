@@ -30,7 +30,7 @@ main = do conn <- connect defaultConnectInfo
           app <- toWaiApp foundation
           let loggedApp = logStdoutDev app
           mspecs <- M.specs
-          runSpecs [--HS.hspecB $ P.specs conn ++ U.specs ++ WU.specs ++ T.specs ++ mspecs,
+          runSpecs [HS.hspecB $ P.specs conn ++ U.specs ++ WU.specs ++ T.specs ++ mspecs,
                     HSM.hspecB $ WS.specs app]
 
 ---- Helpers
