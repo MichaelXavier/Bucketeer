@@ -53,10 +53,6 @@ import Yesod
 import Yesod.Handler
 import Yesod.Request
 
-----DEBUG IMPORTS
-import qualified Data.HashMap.Strict as H
-import Data.Text (pack)
-
 data BucketeerWeb = BucketeerWeb { connection    :: Connection,
                                    bucketManager :: IORef BucketManager }
 

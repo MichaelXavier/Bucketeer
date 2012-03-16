@@ -24,11 +24,7 @@ import Yesod (toWaiApp)
 
 
 main :: IO ()
-main = do conn <- connect defaultConnectInfo
-          bmRef <- newIORef =<< startBucketManager [] conn
-          let foundation = BucketeerWeb conn bmRef
-          app <- toWaiApp foundation
-          let loggedApp = logStdoutDev app
+main = do conn   <- connect defaultConnectInfo
           mspecs <- M.specs
           runSpecs [HS.hspecB $ P.specs conn ++ U.specs ++ WU.specs ++ T.specs ++ mspecs,
                     HSM.hspecB $ WS.specs app]

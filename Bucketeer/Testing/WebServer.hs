@@ -2,12 +2,16 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Bucketeer.Testing.WebServer (specs) where
 
-import Bucketeer.Manager (startBucketManager)
+import Bucketeer.Manager (startBucketManager,
+                          BucketInterface(..),
+                          BucketManager)
 import Bucketeer.Types
 import Bucketeer.WebServer (BucketeerWeb(..))
 
 import Data.ByteString (ByteString)
-import Data.IORef (newIORef)
+import Data.IORef (newIORef,
+                   IORef,
+                   modifyIORef)
 import Database.Redis (Connection)
 import Database.Redis (connect,
                        defaultConnectInfo)
@@ -29,10 +33,22 @@ import Test.HUnit.Base
 import Data.String.QQ (s)
 import Yesod (toWaiApp)
 
-specs :: Application
-         -> Specs
-specs app = do
+
+---DEBUG includes
+import Control.Concurrent (forkIO,
+                           ThreadId)
+import qualified Data.HashMap.Strict as H
+
+
+specs :: Connection
+         -> IO Specs
+specs conn = do
+  bmRef <- newIORef =<< startBucketManager [] conn
+  app <- toWaiApp $ BucketeerWeb conn bmRef
+  dummyTid <- forkIO $ return ()
+
   let webApp = flip runSession $ app
+
   describe "GET request to a bogus endpoint" $ do
     let path = "bogus"
 
@@ -42,6 +58,7 @@ specs app = do
   --- DELETE /consumers/#Consumer
   describe "DELETE to non-existant consumer" $ do
     let path = "consumers/bogus"
+    loadFixtures app
 
     it "non-existant consumer: returns a 404" $ webApp $
       assertStatus 404 =<< request (setRawPathInfo deleteRequest path)
@@ -194,3 +211,32 @@ deleteRequest = baseRequest { requestMethod = methodDelete }
 
 baseRequest :: Request
 baseRequest = defaultRequest { requestHeaders = [headerAccept "application/json"] }
+
+dummyTid :: IO (ThreadId)
+dummyTid = forkIO $ return ()
+
+loadFixtures :: ThreadId
+                -> IORef (BucketManager)
+                -> IO ()
+loadFixtures tid bmRef = modifyIORef bmRef (const $ fullBM tid)
+
+fullBM :: ThreadId
+          -> BucketManager
+fullBM tid = H.singleton (cns, feat) $ bi tid
+
+cns :: Consumer
+cns = Consumer "summer"
+
+feat :: Feature
+feat = Feature "barrel_roll"
+
+bi :: ThreadId
+      -> BucketInterface
+bi tid = BucketInterface { bucket         = bkt,
+                           refillerThread = tid }
+
+bkt :: Bucket
+bkt = Bucket { consumer    = cns,
+               feature     = feat,
+               capacity    = 2,
+               restoreRate = 1000 }
