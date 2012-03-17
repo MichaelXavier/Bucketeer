@@ -42,6 +42,7 @@ import Database.Redis (Connection,
                        runRedis,
                        defaultConnectInfo)
 import Network.HTTP.Types (Status,
+                           noContent204,
                            notFound404)
 import Network.Wai (Middleware)
 import Network.Wai.Handler.Warp (run)
@@ -97,10 +98,12 @@ getBucketR cns feat = checkFeature cns feat $ jsonToRepJson . RemainingResponse 
 postBucketR :: Consumer
                -> Feature
                -> Handler ()
-postBucketR cns feat = checkConsumer cns $ do cap  <- lookupPostParam "capacity"
-                                              rate <- lookupPostParam "restore_rate"
-                                              if (isJust cap && isJust rate) then sendResponseCreated route
-                                              else                                invalidArgs ["capacity", "restore_rate"]
+postBucketR cns feat = checkConsumer cns $ do --cap  <- lookupPostParam "capacity"
+                                              --rate <- lookupPostParam "restore_rate"
+                                              (derp, _)  <- runRequestBody
+                                              --if (isJust cap && isJust rate) then sendResponseCreated route
+                                              if False then sendResponseCreated route
+                                              else                                sendError notFound404 derp
   where route = BucketR cns feat
 
 deleteBucketR :: Consumer
@@ -132,8 +135,9 @@ postBucketDrainR cns feat = checkFeature cns feat $ doDrain =<< getConn
 
 deleteConsumerR  :: Consumer
                     -> Handler ()
-deleteConsumerR cns = checkConsumer cns $ liftIO . revoke =<< getBM
-  where revoke bmRef = atomicModifyIORef bmRef (revokeConsumer cns) >>= mapM_ (forkIO . killThread)
+deleteConsumerR cns = checkConsumer cns $  handler >> sendNoContent
+  where handler      = liftIO . revoke =<< getBM
+        revoke bmRef = atomicModifyIORef bmRef (revokeConsumer cns) >>= mapM_ (forkIO . killThread)
 
 ---- Helpers
 getConn = return . connection    =<< getYesod
@@ -167,3 +171,6 @@ sendError :: Status
 sendError status errs = sendResponseStatus status repErrs
   where repErrs        = RepJson . toContent . toJSON $ responseErrors
         responseErrors = map (uncurry ResponseError) errs
+
+sendNoContent :: GHandler s m a
+sendNoContent = sendResponseStatus noContent204 ()
