@@ -43,6 +43,7 @@ import Database.Redis (Connection,
                        defaultConnectInfo)
 import Network.HTTP.Types (Status,
                            noContent204,
+                           status400,
                            notFound404)
 import Network.Wai (Middleware)
 import Network.Wai.Handler.Warp (run)
@@ -98,12 +99,10 @@ getBucketR cns feat = checkFeature cns feat $ jsonToRepJson . RemainingResponse 
 postBucketR :: Consumer
                -> Feature
                -> Handler ()
-postBucketR cns feat = checkConsumer cns $ do --cap  <- lookupPostParam "capacity"
-                                              --rate <- lookupPostParam "restore_rate"
-                                              (derp, _)  <- runRequestBody
-                                              --if (isJust cap && isJust rate) then sendResponseCreated route
-                                              if False then sendResponseCreated route
-                                              else                                sendError notFound404 derp
+postBucketR cns feat = checkConsumer cns $ do cap  <- lookupPostParam "capacity"
+                                              rate <- lookupPostParam "restore_rate"
+                                              if (isJust cap && isJust rate) then sendResponseCreated route
+                                              else                                sendError status400 [("Missing Parameters", "capacity and restore_rate params required")]
   where route = BucketR cns feat
 
 deleteBucketR :: Consumer
