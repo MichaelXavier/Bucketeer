@@ -108,9 +108,10 @@ postBucketR cns feat = checkConsumer cns $ do cap  <- lookupPostParam "capacity"
 deleteBucketR :: Consumer
                  -> Feature
                  -> Handler ()
-deleteBucketR cns feat = checkFeature cns feat $ liftIO . revoke =<< getBM
-  where revoke bmRef = atomicModifyIORef bmRef (revokeFeature cns feat) >>= maybeKill
-        maybeKill (Just tid) = killThread tid
+deleteBucketR cns feat = checkFeature cns feat $ handler >> sendNoContent
+  where handler      = liftIO . revoke =<< getBM
+        revoke bmRef = atomicModifyIORef bmRef (revokeFeature cns feat) >>= maybeKill
+        maybeKill (Just tid) = (forkIO $ killThread tid) >> return ()
         maybeKill Nothing    = return ()
 
 postBucketTickR :: Consumer

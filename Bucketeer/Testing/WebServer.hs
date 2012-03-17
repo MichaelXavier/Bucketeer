@@ -1,18 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-module Bucketeer.Testing.WebServer (specs) where
+module Bucketeer.Testing.WebServer (runSpecs) where
 
 import Bucketeer.Manager (startBucketManager,
+                          consumerExists,
+                          featureExists,
                           BucketInterface(..),
                           BucketManager)
 import Bucketeer.Types
 import Bucketeer.WebServer (BucketeerWeb(..))
 
 import Control.Monad.IO.Class (liftIO)
+import qualified Data.ByteString.Char8 as BS8
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.IORef (newIORef,
                    IORef,
+                   readIORef,
+                   writeIORef,
                    modifyIORef)
 import Database.Redis (Connection)
 import Database.Redis (connect,
@@ -27,15 +32,12 @@ import Network.HTTP.Types (methodPost,
 import Network.Wai (Application,
                     Request(..))
 import Network.Wai.Test
-import Test.Hspec.Monadic (Specs,
-                           describe,
-                           pending,
-                           descriptions,
-                           it)
 import Test.Hspec.HUnit
-import Test.HUnit.Base
+import Test.HUnit (assertBool)
 import Data.String.QQ (s)
 import Yesod (toWaiApp)
+import Yesod.Test
+import qualified Control.Monad.Trans.State as ST
 
 
 ---DEBUG includes
@@ -43,195 +45,189 @@ import Control.Concurrent (forkIO,
                            ThreadId)
 import qualified Data.HashMap.Strict as H
 
+runSpecs :: Connection
+            -> IO ()
+runSpecs conn = do bmRef <- newIORef =<< newBM
+                   app   <- toWaiApp $ BucketeerWeb conn bmRef
+                   runTests app undefined $ specs conn bmRef
+
+newBM :: IO BucketManager
+newBM = return . fullBM =<< dummyTid
+
+resetBMRef :: IORef (BucketManager)
+              -> IO ()
+resetBMRef bmRef = (writeIORef bmRef =<< newBM)
+
 specs :: Connection
+         -> IORef BucketManager
          -> Specs
-specs conn = do
-  let app  = liftIO $ defaultApp conn
-  let app' = liftIO $ loadedApp conn
-
+specs conn bmRef = do
+  let beforeRun = (liftIO $ resetBMRef bmRef)
+  --TODO: restore mRef between tests?
   describe "GET request to a bogus endpoint" $ do
-    let path    = "bogus"
-    let req = (setRawPathInfo getRequest path)
-
-    it "returns a 404" $
-      runSession (assertStatus 404 =<< request req) =<<
-      app
+    it "returns a 404" $ beforeRun >> do
+      get_ "bogus"
+      statusIs 404
 
   --- DELETE /consumers/#Consumer
   describe "DELETE to non-existant consumer" $ do
-    let path = "consumers/bogus"
-    let req = (setRawPathInfo deleteRequest path)
+    it "returns a 404" $ beforeRun >> do
+      delete_ "consumers/bogus"
 
-    it "non-existant consumer: returns a 404" $
-      runSession (assertStatus 404 =<< request req) =<<
-      app
+      statusIs 404
+      -- Not enough API exposed in test to write a more precise matcher
+      bodyContains [s|"description":"Could not find consumer bogus"|]
+      bodyContains [s|"id":"Consumer Not Found"|]
 
   describe "DELETE request to existing consumer" $ do
-    let path = "consumers/summer"
-    let req = (setRawPathInfo deleteRequest path)
+    it "returns a 204, deleting the consumer" $ beforeRun >> do
+      delete_ "consumers/summer"
 
-    it "returns a 204" $
-      runSession (assertStatus 204 =<< request req) =<<
-      app'
-    it "deletes the consumer" $
-      pending "implementation"
+      statusIs 204
 
+      bm <- liftIO $ readIORef bmRef
+
+      assertEqual "Consumer removed" False $ consumerExists cns bm
 
   --- GET /consumers/#Consumer/buckets/#Feature
   describe "GET to non-existant bucket" $ do
-    let path = "consumers/summer/buckets/bogus"
-    let req = (setRawPathInfo getRequest path)
+    it "returns a 404" $ beforeRun >> do
+      get_ "consumers/summer/buckets/bogus"
 
-    it "returns a 404" $
-      runSession (assertStatus 404 =<< request req) =<<
-      app
-    it "returns an error message" $
-      runSession (assertBody [s|[{"description":"Could not find feature (summer, bogus)","id":"Feature Not Found"}]|] =<< request req) =<<
-      app
+      statusIs 404
+
+      bodyContains [s|"description":"Could not find feature (summer, bogus)"|]
+      bodyContains [s|"id":"Feature Not Found"|]
+
 
   describe "GET to existing bucket" $ do
-    let path = "consumers/summer/buckets/barrel_roll"
-    let req = (setRawPathInfo getRequest path)
+    it "returns a 200" $ beforeRun >> do
+      get_ "consumers/summer/buckets/barrel_roll"
 
-    it "returns a 200" $ 
-      runSession (assertStatus 200 =<< request req) =<<
-      app'
+      statusIs 200
 
-    --NOTE: the semantics here are questionable
-    it "renders the bucket" $ 
-      runSession (assertBody [s|{"remaining":0}|] =<< request req) =<<
-      app'
+      bodyContains [s|{"remaining":0}|]
 
 
   --- POST /consumers/#Consumer/buckets
   describe "POST to non-existant consumer" $ do
-    let path = "consumers/bogus/buckets/barrel_roll"
-    let sreq = SRequest (setRawPathInfo postRequest path) ""
+    it "returns a 404" $ beforeRun >> do
+      post_ "consumers/bogus/buckets/bogus"
 
-    it "returns a 404" $
-      runSession (assertStatus 404 =<< srequest sreq) =<<
-      app
+      statusIs 404
 
-    it "returns an error message" $
-      runSession (assertBody [s|[{"description":"Could not find consumer bogus","id":"Consumer Not Found"}]|] =<< srequest sreq) =<<
-      app
+      bodyContains [s|"description":"Could not find consumer bogus"|]
+      bodyContains [s|"id":"Consumer Not Found"|]
+
 
   describe "POST to existing consumer, all params" $ do
-    let path = "consumers/summer/buckets/barrel_roll"
-    let fuckingParams = simpleQueryToQuery [("capacity", "10"), ("restore_rate", "9000")]
-    --let sreq = SRequest (setRawPathInfo postRequest path) $ postParams [("capacity", "10"), ("restore_rate", "9000")]
-    let req = (setRawPathInfo postRequest { queryString = fuckingParams } path)
-    --error $ show $ postParams [("capacity", "10"), ("restore_rate", "9000")]
+    let params = postParams [("capacity", "10"), ("restore_rate", "9000")]
 
-    it "returns a 204" $ 
-      runSession (assertStatus 204 =<< request req) =<<
-      app'
+    it "returns a 201" $ beforeRun >> do
+      --post "consumers/summer/buckets/barrel_roll" $ byName "consumer" "summer"
+      post "consumers/summer/buckets/barrel_roll" $ params
 
-    it "returns an empty body" $ 
-      runSession (assertBody "" =<< request req) =<<
-      app'
+      statusIs 201
+      --TODO: verify Location header
+
 
   describe "POST to existing consumer, missing capacity" $ do
-    it "returns a 400" $ 
-      pending "implementation"
-    it "returns an error" $ 
-      pending "implementation"
+    let params = postParams [("restore_rate", "9000")]
 
-  describe "POST to existing consumer, missing restore_rate" $ do
-    it "returns a 400" $ 
-      pending "implementation"
-    it "returns an error" $ 
-      pending "implementation"
+    it "returns a 400" $ beforeRun >> do
+      post "consumers/summer/buckets/barrel_roll" $ params
+
+      statusIs 400
+
+      bodyContains [s|[{"description":"capacity and restore_rate params required","id":"Missing Parameters"}]|]
+
 
   describe "POST to existing consumer, missing both" $ do
-    it "returns a 400" $ 
-      pending "implementation"
-    it "returns an error" $ 
-      pending "implementation"
+    let params = postParams [("capacity", "10")]
+
+    it "returns a 400" $ beforeRun >> do
+      post "consumers/summer/buckets/barrel_roll" $ params
+
+      statusIs 400
+
+      bodyContains [s|[{"description":"capacity and restore_rate params required","id":"Missing Parameters"}]|]
 
 
   --- DELETE /consumers/#Consumer/buckets/#Bucket
   describe "DELETE to non-existant bucket" $ do
-    let path = "consumers/summer/buckets/bogus"
-    let req = (setRawPathInfo deleteRequest path)
+    it "returns a 404" $ beforeRun >> do
+      delete_ "consumers/summer/buckets/bogus"
 
-    it "returns a 404" $
-      runSession (assertStatus 404 =<< request req) =<<
-      app
+      statusIs 404
 
-    it "returns an error message" $
-      runSession (assertBody [s|[{"description":"Could not find feature (summer, bogus)","id":"Feature Not Found"}]|] =<< request req) =<<
-      app
+      bodyContains [s|"description":"Could not find feature (summer, bogus)"|]
+      bodyContains [s|"id":"Feature Not Found"|]
 
-  describe "DELETE to existing bucket" $ do
-    it "returns 204" $ 
-      pending "implementation"
-    it "removes the bucket from the manager" $ 
-      pending "implementation"
-    it "revokes the bucket in redis" $ 
-      pending "implementation"
+
+  describe "DELETE to an existing bucket" $ do
+    it "returns a 204" $ beforeRun >> do
+      delete_ "consumers/summer/buckets/barrel_roll"
+
+      statusIs 204
+
+      bm <- liftIO $ readIORef bmRef
+
+      assertEqual "Bucket removed" False $ featureExists cns feat bm
+
+      --TODO: assert with redis
 
   --- POST /consumers/#Consumer/buckets/#Bucket/tick
   describe "POST to non-existant bucket tick" $ do
-    let path = "consumers/summer/buckets/bogus/tick"
-    let sreq = SRequest (setRawPathInfo postRequest path) ""
+    it "returns a 404" $ beforeRun >> do
+      post_ "consumers/summer/buckets/bogus/tick"
 
-    it "returns a 404" $
-      runSession (assertStatus 404 =<< srequest sreq) =<<
-      app
+      statusIs 404
 
-    it "returns an error message" $
-      runSession (assertBody [s|[{"description":"Could not find feature (summer, bogus)","id":"Feature Not Found"}]|] =<< srequest sreq) =<<
-      app
-
+      bodyContains [s|"description":"Could not find feature (summer, bogus)"|]
+      bodyContains [s|"id":"Feature Not Found"|]
 
   describe "POST to existing bucket tick" $ do
-    it "returns 204" $ 
-      pending "implementation"
-    it "ticks the bucket" $ 
-      pending "implementation"
+    it "returns 200" $ beforeRun >> do
+      post_ "consumers/summer/buckets/barrel_roll/tick"
 
+      statusIs 200
+      --TODO check remaining in body, check redis
 
   --- POST /consumers/#Consumer/buckets/#Bucket/refill
   describe "POST to non-existant bucket refill" $ do
-    let path = "consumers/summer/buckets/bogus/refill"
-    let sreq = SRequest (setRawPathInfo postRequest path) ""
+    it "returns a 404" $ beforeRun >> do
+      post_ "consumers/summer/buckets/bogus/refill"
 
-    it "returns a 404" $
-      runSession (assertStatus 404 =<< srequest sreq) =<<
-      app
+      statusIs 404
 
-    it "returns an error message" $
-      runSession (assertBody [s|[{"description":"Could not find feature (summer, bogus)","id":"Feature Not Found"}]|] =<< srequest sreq) =<<
-      app
-
+      bodyContains [s|"description":"Could not find feature (summer, bogus)"|]
+      bodyContains [s|"id":"Feature Not Found"|]
 
   describe "POST to existing bucket refill" $ do
-    it "returns 204" $ 
-      pending "implementation"
-    it "refills the bucket" $ 
-      pending "implementation"
+    it "returns 200" $ beforeRun >> do
+      post_ "consumers/summer/buckets/barrel_roll/refill"
 
+      statusIs 200
+      --TODO check remaining in body, check redis
 
   --- POST /consumers/#Consumer/buckets/#Bucket/drain
   describe "POST to non-existant bucket drain" $ do
-    let path = "consumers/summer/buckets/bogus/drain"
-    let sreq = SRequest (setRawPathInfo postRequest path) ""
+    it "returns a 404" $ beforeRun >> do
+      post_ "consumers/summer/buckets/bogus/drain"
 
-    it "returns a 404" $
-      runSession (assertStatus 404 =<< srequest sreq) =<<
-                  defaultApp conn
+      statusIs 404
 
-    it "returns an error message" $
-      runSession (assertBody [s|[{"description":"Could not find feature (summer, bogus)","id":"Feature Not Found"}]|] =<< srequest sreq) =<<
-                 defaultApp conn
-
+      bodyContains [s|"description":"Could not find feature (summer, bogus)"|]
+      bodyContains [s|"id":"Feature Not Found"|]
 
   describe "POST to existing bucket drain" $ do
-    it "returns 204" $ 
-      pending "implementation"
-    it "drains the bucket" $ 
-      pending "implementation"
+    it "returns 200" $ beforeRun >> do
+      post_ "consumers/summer/buckets/barrel_roll/drain"
+
+      statusIs 200
+      --TODO check remaining in body, check redis
+
+
 
 getRequest :: Request
 getRequest = baseRequest { requestMethod = methodGet }
@@ -287,7 +283,8 @@ loadedApp :: Connection
 loadedApp conn = do bmRef <- newIORef . fullBM =<< dummyTid
                     toWaiApp $ BucketeerWeb conn bmRef
 
-postParams :: [(ByteString, ByteString)]
-              -> LBS.ByteString
-postParams = LBS.fromChunks . return . renderSimpleQuery True
+postParams pairs = mapM_ (uncurry byName ) pairs
 --postParams = LBS.fromChunks . return . renderSimpleQuery False
+
+delete_ :: BS8.ByteString -> OneSpec ()
+delete_ url = doRequest "DELETE" url $ return ()
