@@ -7,6 +7,7 @@ import Bucketeer.Manager (startBucketManager,
                           featureExists,
                           BucketInterface(..),
                           BucketManager)
+import Bucketeer.Persistence (remaining)
 import Bucketeer.Types
 import Bucketeer.WebServer (BucketeerWeb(..))
 
@@ -19,9 +20,8 @@ import Data.IORef (newIORef,
                    readIORef,
                    writeIORef,
                    modifyIORef)
-import Database.Redis (Connection)
-import Database.Redis (connect,
-                       defaultConnectInfo)
+import Database.Redis (Connection,
+                       runRedis)
 import Network.HTTP.Types (methodPost,
                            methodGet,
                            methodDelete,
@@ -50,13 +50,6 @@ runSpecs :: Connection
 runSpecs conn = do bmRef <- newIORef =<< newBM
                    app   <- toWaiApp $ BucketeerWeb conn bmRef
                    runTests app undefined $ specs conn bmRef
-
-newBM :: IO BucketManager
-newBM = return . fullBM =<< dummyTid
-
-resetBMRef :: IORef (BucketManager)
-              -> IO ()
-resetBMRef bmRef = (writeIORef bmRef =<< newBM)
 
 specs :: Connection
          -> IORef BucketManager
@@ -123,12 +116,13 @@ specs conn bmRef = do
   describe "POST to existing consumer, all params" $ do
     let params = postParams [("capacity", "10"), ("restore_rate", "9000")]
 
-    it "returns a 201" $ beforeRun >> do
-      --post "consumers/summer/buckets/barrel_roll" $ byName "consumer" "summer"
+    it "returns a 201, filling the user" $ beforeRun >> do
       post "consumers/summer/buckets/barrel_roll" $ params
 
       statusIs 201
       --TODO: verify Location header
+
+      assertRemaining conn cns feat 10
 
 
   describe "POST to existing consumer, missing capacity" $ do
@@ -284,7 +278,17 @@ loadedApp conn = do bmRef <- newIORef . fullBM =<< dummyTid
                     toWaiApp $ BucketeerWeb conn bmRef
 
 postParams pairs = mapM_ (uncurry byName ) pairs
---postParams = LBS.fromChunks . return . renderSimpleQuery False
 
 delete_ :: BS8.ByteString -> OneSpec ()
 delete_ url = doRequest "DELETE" url $ return ()
+
+newBM :: IO BucketManager
+newBM = return . fullBM =<< dummyTid
+
+resetBMRef :: IORef (BucketManager)
+              -> IO ()
+resetBMRef bmRef = (writeIORef bmRef =<< newBM)
+
+assertRemaining conn cns feat n = do actual <- liftIO $ runRedis conn $ remaining cns feat
+                                     assertEqual (msg actual) n actual
+  where msg actual = "Remaining count expected " ++ show n ++ ", was " ++ show actual

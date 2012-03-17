@@ -14,26 +14,35 @@ import Bucketeer.Persistence (remaining,
 import Bucketeer.Manager (BucketManager,
                           featureExists,
                           consumerExists,
+                          replaceBucket,
                           revokeFeature,
                           revokeConsumer,
                           startBucketManager,
                           storeBucketManager,
+                          runRefiller,
                           restoreBuckets)
 import Bucketeer.Types
+import Bucketeer.Util (forkWaitingIO,
+                       (.:),
+                       maybeRead)
 import Bucketeer.WebServer.Util
 
 import Control.Applicative ((<$>))
 import Control.Concurrent (forkIO,
+                           ThreadId,
                            killThread)
+import Control.Concurrent.MVar (putMVar)
 import Control.Exception (finally)
-import Control.Monad (when)
+import Control.Monad (when,
+                      join)
 import Data.Aeson (toJSON)
 import Data.ByteString (ByteString(..))
 import Data.IORef (newIORef,
                    readIORef,
                    IORef,
                    atomicModifyIORef)
-import Data.Maybe (isJust)
+import Data.Maybe (isJust,
+                   fromJust)
 import Data.Text (Text(..))
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text as T
@@ -99,20 +108,21 @@ getBucketR cns feat = checkFeature cns feat $ jsonToRepJson . RemainingResponse 
 postBucketR :: Consumer
                -> Feature
                -> Handler ()
-postBucketR cns feat = checkConsumer cns $ do cap  <- lookupPostParam "capacity"
-                                              rate <- lookupPostParam "restore_rate"
-                                              if (isJust cap && isJust rate) then sendResponseCreated route
+postBucketR cns feat = checkConsumer cns $ do cap    <- join <$> (maybeRead . T.unpack) .: lookupPostParam "capacity"
+                                              rate   <- join <$> (maybeRead . T.unpack) .: lookupPostParam "restore_rate"
+                                              bmRef  <- getBM
+                                              conn   <- getConn
+                                              if (isJust cap && isJust rate) then create bmRef conn $ Bucket cns feat (fromJust cap) (fromJust rate)
                                               else                                sendError status400 [("Missing Parameters", "capacity and restore_rate params required")]
-  where route = BucketR cns feat
+  where create bmRef conn bkt = liftIO (atomicAddFeature bmRef conn bkt) >> sendResponseCreated route
+        route = BucketR cns feat
 
 deleteBucketR :: Consumer
                  -> Feature
                  -> Handler ()
 deleteBucketR cns feat = checkFeature cns feat $ handler >> sendNoContent
   where handler      = liftIO . revoke =<< getBM
-        revoke bmRef = atomicModifyIORef bmRef (revokeFeature cns feat) >>= maybeKill
-        maybeKill (Just tid) = (forkIO $ killThread tid) >> return ()
-        maybeKill Nothing    = return ()
+        revoke bmRef = atomicKillFeature bmRef cns feat
 
 postBucketTickR :: Consumer
                    -> Feature
@@ -174,3 +184,25 @@ sendError status errs = sendResponseStatus status repErrs
 
 sendNoContent :: GHandler s m a
 sendNoContent = sendResponseStatus noContent204 ()
+
+atomicAddFeature :: IORef BucketManager
+                    -> Connection
+                    -> Bucket
+                    -> IO ()
+atomicAddFeature bmRef conn bkt = do (mvar, tid) <- forkWaitingIO $ runRefiller conn bkt
+                                     atomicModifyAndKill bmRef (replaceBucket bkt tid) >> unBlock mvar
+  where unBlock = flip putMVar $ ()
+
+atomicKillFeature :: IORef BucketManager
+               -> Consumer
+               -> Feature
+               -> IO ()
+atomicKillFeature bmRef cns feat = atomicModifyAndKill bmRef (revokeFeature cns feat)
+
+atomicModifyAndKill :: IORef BucketManager
+                       -> (BucketManager -> (BucketManager, Maybe ThreadId))
+                       -> IO ()
+atomicModifyAndKill bmRef modify = atomicModifyIORef bmRef modify >>= maybeKill
+  where maybeKill (Just tid) = (forkIO $ killThread tid) >> return ()
+        maybeKill Nothing    = return ()
+

@@ -9,9 +9,11 @@ module Bucketeer.Manager (BucketManager(..),
                           defaultBucketManager,
                           BucketInterface(..),
                           addBucket,
+                          replaceBucket,
                           revokeFeature,
                           featureExists,
                           consumerExists,
+                          runRefiller,
                           revokeConsumer) where
 
 import Bucketeer.Persistence (restore)
@@ -79,15 +81,26 @@ startBucketManager buckets conn = do threads <- mapM startRefiller buckets
 defaultBucketManager :: BucketManager
 defaultBucketManager = empty
 
+--TODO: rename bucket named functions with Feature
 addBucket :: Bucket
              -> ThreadId
              -> BucketManager
              -> BucketManager
-addBucket bkt tid mgr = H.insertWith replaceBI (cns, feat) newBI mgr
+addBucket bkt tid bm = H.insertWith replaceBI (cns, feat) newBI bm
   where feat = feature bkt
         cns  = consumer bkt
         replaceBI _ bi = updateBI bkt bi
         newBI = BucketInterface { bucket = bkt, refillerThread = tid }
+
+replaceBucket :: Bucket
+                 -> ThreadId
+                 -> BucketManager
+                 -> (BucketManager, Maybe ThreadId)
+replaceBucket bkt@Bucket { consumer = cns,
+                           feature  = feat} tid bm = (bmFinal, maybeTid)
+  where (bm', maybeTid) = revokeFeature cns feat bm
+        bmFinal         = addBucket bkt tid bm'
+        
 
 revokeFeature :: Consumer
                  -> Feature
