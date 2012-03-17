@@ -27,7 +27,7 @@ main :: IO ()
 main = do conn   <- connect defaultConnectInfo
           mspecs <- M.specs
           runSpecs [HS.hspecB $ P.specs conn ++ U.specs ++ WU.specs ++ T.specs ++ mspecs,
-                    HSM.hspecB $ WS.specs app]
+                    HSM.hspecB $ WS.specs conn]
 
 ---- Helpers
 runSpecs :: [IO Bool]
