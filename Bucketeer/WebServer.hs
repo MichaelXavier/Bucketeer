@@ -154,7 +154,8 @@ postBucketRefillR cns feat = checkFeature cns feat $ do conn <- getConn
 postBucketDrainR :: Consumer
                     -> Feature
                     -> Handler ()
-postBucketDrainR cns feat = checkFeature cns feat $ doDrain =<< getConn
+postBucketDrainR cns feat = checkFeature cns feat $ do doDrain =<< getConn 
+                                                       sendNoContent
   where doDrain conn = liftIO $ runRedis conn $ drain cns feat
 
 deleteConsumerR  :: Consumer

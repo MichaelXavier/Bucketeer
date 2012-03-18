@@ -207,6 +207,7 @@ specs conn bmRef = do
       post_ "consumers/summer/buckets/barrel_roll/refill"
 
       statusIs 200
+
       bodyContains [s|{"remaining":2}|]
       assertRemaining conn 2
 
@@ -221,11 +222,12 @@ specs conn bmRef = do
       bodyContains [s|"id":"Feature Not Found"|]
 
   describe "POST to existing bucket drain" $ do
-    it "returns 200" $ beforeRun >> do
+    it "returns 204 with no body" $ beforeRun >> do
       post_ "consumers/summer/buckets/barrel_roll/drain"
 
-      statusIs 200
-      --TODO check remaining in body, check redis
+      statusIs 204
+
+      assertRemaining conn 0
 
 
 
