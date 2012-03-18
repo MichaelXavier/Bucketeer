@@ -8,11 +8,15 @@ import Bucketeer.Util
 import Control.Exception (finally)
 import Control.Monad.Instances
 import Data.ByteString (ByteString(..))
-import Data.ByteString.Char8 (pack)
+import qualified Data.ByteString as BS
+import Data.ByteString.Char8 (pack,
+                              unpack)
 import Database.Redis (Redis(..),
                        Connection,
                        runRedis,
+                       exists,
                        hget,
+                       hexists,
                        hset,
                        del)
 import Test.Hspec (Specs,
@@ -29,7 +33,9 @@ specs = descriptions . applyList [describe_restore,
                                   describe_drain,
                                   describe_refill,
                                   describe_remaining,
-                                  describe_tick]
+                                  describe_tick,
+                                  describe_deleteFeature,
+                                  describe_deleteConsumer]
 
 describe_restore :: Connection
                     -> Specs
@@ -127,6 +133,41 @@ describe_tick conn = describe "Bucketeer.Persistence.tick" [
   ]
   where doTick = runRedis conn $ tick cns feat
 
+
+describe_deleteFeature :: Connection
+                          -> Specs
+describe_deleteFeature conn = describe "Bucketeer.Persistence.deleteFeature" [
+    it "when key is missing: keeps the key missing?" $
+      withCleanup conn $ do overwriteKey conn "2"
+                            doDeleteFeature conn cns $ Feature "wat"
+                            assertDeletedBucket conn $ Feature "wat",
+    it "when key is present: deletes the key" $
+      withCleanup conn $ do overwriteKey conn "2"
+                            doDeleteFeature conn cns feat
+                            assertDeletedBucket conn feat
+  ]
+  where assertDeletedBucket conn (Feature f) = assertEqual (assertMsg f) (Right False) =<<
+                                               (runRedis conn $ hexists "bucketeer:summer" f)
+        assertMsg f                          = "Deleted " ++ unpack f
+        doDeleteFeature conn cns feat = runRedis conn $ deleteFeature cns feat
+
+describe_deleteConsumer :: Connection
+                           -> Specs
+describe_deleteConsumer conn = describe "Bucketeer.Persistence.deleteConsumer" [
+    it "when key is missing: keeps the key missing?" $
+      withCleanup conn $ do doDeleteConsumer conn (Consumer "bogus")
+                            assertDeletedConsumer conn (Consumer "bogus"),
+    it "when key is present: deletes the key" $
+      withCleanup conn $ do overwriteKey conn "2"
+                            doDeleteConsumer conn cns
+                            assertDeletedConsumer conn cns
+  ]
+  where assertDeletedConsumer conn (Consumer c) = assertEqual (assertMsg c) (Right False) =<<
+                                                  (runRedis conn $ exists $ BS.concat ["bucketeer:", c])
+        assertMsg c                             = "Deleted " ++ unpack c
+        doDeleteConsumer conn cns = runRedis conn $ deleteConsumer cns
+
+--- Helpers
 
 assertRemaining :: Connection
                    -> Integer

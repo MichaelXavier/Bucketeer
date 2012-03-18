@@ -21,6 +21,7 @@ import Data.IORef (newIORef,
                    writeIORef,
                    modifyIORef)
 import Database.Redis (Connection,
+                       hset,
                        runRedis)
 import Network.HTTP.Types (methodPost,
                            methodGet,
@@ -55,8 +56,8 @@ specs :: Connection
          -> IORef BucketManager
          -> Specs
 specs conn bmRef = do
-  let beforeRun = (liftIO $ resetBMRef bmRef)
-  --TODO: restore mRef between tests?
+  let beforeRun = liftIO $ do resetBMRef bmRef
+                              resetCount conn 1
   describe "GET request to a bogus endpoint" $ do
     it "returns a 404" $ beforeRun >> do
       get_ "bogus"
@@ -81,6 +82,7 @@ specs conn bmRef = do
       bm <- liftIO $ readIORef bmRef
 
       assertEqual "Consumer removed" False $ consumerExists cns bm
+      assertRemaining conn 0
 
   --- GET /consumers/#Consumer/buckets/#Feature
   describe "GET to non-existant bucket" $ do
@@ -99,7 +101,7 @@ specs conn bmRef = do
 
       statusIs 200
 
-      bodyContains [s|{"remaining":0}|]
+      bodyContains [s|{"remaining":1}|]
 
 
   --- POST /consumers/#Consumer/buckets
@@ -122,7 +124,7 @@ specs conn bmRef = do
       statusIs 201
       --TODO: verify Location header
 
-      assertRemaining conn cns feat 10
+      assertRemaining conn 10
 
 
   describe "POST to existing consumer, missing capacity" $ do
@@ -168,6 +170,8 @@ specs conn bmRef = do
 
       assertEqual "Bucket removed" False $ featureExists cns feat bm
 
+      assertRemaining conn 0
+
       --TODO: assert with redis
 
   --- POST /consumers/#Consumer/buckets/#Bucket/tick
@@ -180,12 +184,15 @@ specs conn bmRef = do
       bodyContains [s|"description":"Could not find feature (summer, bogus)"|]
       bodyContains [s|"id":"Feature Not Found"|]
 
+
   describe "POST to existing bucket tick" $ do
     it "returns 200" $ beforeRun >> do
       post_ "consumers/summer/buckets/barrel_roll/tick"
 
       statusIs 200
-      --TODO check remaining in body, check redis
+
+      bodyContains [s|{"remaining":0}|]
+      assertRemaining conn 0
 
   --- POST /consumers/#Consumer/buckets/#Bucket/refill
   describe "POST to non-existant bucket refill" $ do
@@ -289,6 +296,12 @@ resetBMRef :: IORef (BucketManager)
               -> IO ()
 resetBMRef bmRef = (writeIORef bmRef =<< newBM)
 
-assertRemaining conn cns feat n = do actual <- liftIO $ runRedis conn $ remaining cns feat
-                                     assertEqual (msg actual) n actual
+assertRemaining conn n = do actual <- liftIO $ runRedis conn $ remaining cns feat
+                            assertEqual (msg actual) n actual
   where msg actual = "Remaining count expected " ++ show n ++ ", was " ++ show actual
+
+resetCount :: Connection
+              -> Integer
+              -> IO ()
+resetCount conn n = liftIO $ runRedis conn $ hset "bucketeer:buckets:summer" "barrel_roll" (bsN) >> return ()
+  where bsN = BS8.pack . show $ n

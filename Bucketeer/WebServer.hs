@@ -10,6 +10,8 @@ import Bucketeer.Persistence (remaining,
                               tick,
                               drain,
                               refill,
+                              deleteFeature,
+                              deleteConsumer,
                               TickResult(..))
 import Bucketeer.Manager (BucketManager,
                           featureExists,
@@ -114,15 +116,20 @@ postBucketR cns feat = checkConsumer cns $ do cap    <- join <$> (maybeRead . T.
                                               conn   <- getConn
                                               if (isJust cap && isJust rate) then create bmRef conn $ Bucket cns feat (fromJust cap) (fromJust rate)
                                               else                                sendError status400 [("Missing Parameters", "capacity and restore_rate params required")]
-  where create bmRef conn bkt = liftIO (atomicAddFeature bmRef conn bkt) >> sendResponseCreated route
+  where create bmRef conn bkt = liftIO (atomicAddFeature bmRef conn bkt) >>
+                                liftIO (runRedis conn $ refill cns feat $ capacity bkt) >>
+                                sendResponseCreated route
         route = BucketR cns feat
 
 deleteBucketR :: Consumer
                  -> Feature
                  -> Handler ()
 deleteBucketR cns feat = checkFeature cns feat $ handler >> sendNoContent
-  where handler      = liftIO . revoke =<< getBM
-        revoke bmRef = atomicKillFeature bmRef cns feat
+  where handler      = do bmRef <- getBM
+                          conn  <- getConn
+                          liftIO $ revoke bmRef conn
+        revoke bmRef conn = atomicKillFeature bmRef cns feat >>
+                            liftIO (runRedis conn $ deleteFeature cns feat)
 
 postBucketTickR :: Consumer
                    -> Feature
@@ -146,8 +153,12 @@ postBucketDrainR cns feat = checkFeature cns feat $ doDrain =<< getConn
 deleteConsumerR  :: Consumer
                     -> Handler ()
 deleteConsumerR cns = checkConsumer cns $  handler >> sendNoContent
-  where handler      = liftIO . revoke =<< getBM
-        revoke bmRef = atomicModifyIORef bmRef (revokeConsumer cns) >>= mapM_ (forkIO . killThread)
+  where handler      = do bmRef <- getBM
+                          conn  <- getConn
+                          liftIO $ revoke bmRef conn
+        revoke bmRef conn = do mapM_ backgroundKill =<< atomicModifyIORef bmRef (revokeConsumer cns)
+                               liftIO $ runRedis conn $ deleteConsumer cns
+
 
 ---- Helpers
 getConn = return . connection    =<< getYesod
@@ -203,6 +214,9 @@ atomicModifyAndKill :: IORef BucketManager
                        -> (BucketManager -> (BucketManager, Maybe ThreadId))
                        -> IO ()
 atomicModifyAndKill bmRef modify = atomicModifyIORef bmRef modify >>= maybeKill
-  where maybeKill (Just tid) = (forkIO $ killThread tid) >> return ()
+  where maybeKill (Just tid) = backgroundKill tid
         maybeKill Nothing    = return ()
 
+backgroundKill :: ThreadId
+                  -> IO ()
+backgroundKill tid = forkIO (killThread tid) >> return ()

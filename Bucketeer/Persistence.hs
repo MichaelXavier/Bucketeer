@@ -4,6 +4,8 @@ module Bucketeer.Persistence (restore,
                               refill,
                               drain,
                               remaining,
+                              deleteFeature,
+                              deleteConsumer,
                               TickResult(..),
                               Response) where
 
@@ -17,8 +19,10 @@ import Data.ByteString.Char8 (pack,
 import Database.Redis (hincrby,
                        set,
                        get,
+                       del,
                        hset,
                        hget,
+                       hdel,
                        hsetnx,
                        Redis(..),
                        Reply(..))
@@ -43,6 +47,19 @@ drain :: Consumer
          -> Feature
          -> Redis ()
 drain cns (Feature feat) = hset nsk feat "0" >> return ()
+  where nsk = namespacedKey cns
+
+--SPECME
+deleteFeature :: Consumer
+                 -> Feature
+                 -> Redis ()
+deleteFeature cns (Feature feat) = hdel nsk [feat] >> return ()
+  where nsk = namespacedKey cns
+
+--SPECME
+deleteConsumer :: Consumer
+                  -> Redis ()
+deleteConsumer cns = del [nsk] >> return ()
   where nsk = namespacedKey cns
 
 refill :: Consumer
