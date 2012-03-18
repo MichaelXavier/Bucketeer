@@ -22,7 +22,8 @@ import Bucketeer.Manager (BucketManager,
                           startBucketManager,
                           storeBucketManager,
                           runRefiller,
-                          restoreBuckets)
+                          restoreBuckets,
+                          BucketInterface(..))
 import Bucketeer.Types
 import Bucketeer.Util (forkWaitingIO,
                        (.:),
@@ -39,6 +40,7 @@ import Control.Monad (when,
                       join)
 import Data.Aeson (toJSON)
 import Data.ByteString (ByteString(..))
+import Data.HashMap.Strict ((!))
 import Data.IORef (newIORef,
                    readIORef,
                    IORef,
@@ -140,9 +142,14 @@ postBucketTickR cns feat = checkFeature cns feat $ repResponse . tickResponse cn
 
 postBucketRefillR :: Consumer
                      -> Feature
-                     -> Handler ()
-postBucketRefillR cns feat = checkFeature cns feat $ doRefill =<< getConn
-  where doRefill conn = liftIO $ runRedis conn $ refill cns feat 15
+                     -> Handler RepJson
+postBucketRefillR cns feat = checkFeature cns feat $ do conn <- getConn
+                                                        bm   <- liftIO . readIORef =<< getBM
+                                                        --TODO: refactor this monstrosity into Manaager
+                                                        let BucketInterface { bucket = Bucket { capacity = cap } } = bm ! (cns, feat)
+                                                        doRefill conn cap
+                                                        jsonToRepJson $ RemainingResponse cap
+  where doRefill conn cap = liftIO $ runRedis conn $ refill cns feat cap
 
 postBucketDrainR :: Consumer
                     -> Feature

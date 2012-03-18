@@ -49,14 +49,12 @@ drain :: Consumer
 drain cns (Feature feat) = hset nsk feat "0" >> return ()
   where nsk = namespacedKey cns
 
---SPECME
 deleteFeature :: Consumer
                  -> Feature
                  -> Redis ()
 deleteFeature cns (Feature feat) = hdel nsk [feat] >> return ()
   where nsk = namespacedKey cns
 
---SPECME
 deleteConsumer :: Consumer
                   -> Redis ()
 deleteConsumer cns = del [nsk] >> return ()

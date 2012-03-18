@@ -172,8 +172,6 @@ specs conn bmRef = do
 
       assertRemaining conn 0
 
-      --TODO: assert with redis
-
   --- POST /consumers/#Consumer/buckets/#Bucket/tick
   describe "POST to non-existant bucket tick" $ do
     it "returns a 404" $ beforeRun >> do
@@ -209,7 +207,8 @@ specs conn bmRef = do
       post_ "consumers/summer/buckets/barrel_roll/refill"
 
       statusIs 200
-      --TODO check remaining in body, check redis
+      bodyContains [s|{"remaining":2}|]
+      assertRemaining conn 2
 
   --- POST /consumers/#Consumer/buckets/#Bucket/drain
   describe "POST to non-existant bucket drain" $ do
