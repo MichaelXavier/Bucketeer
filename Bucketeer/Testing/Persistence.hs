@@ -41,28 +41,26 @@ describe_restore :: Connection
                     -> Specs
 describe_restore conn = describe "Bucketeer.Persistence.restore" [
     it "when key missing: sets the key to 1" $
-       withCleanup conn (doRestore >>
-                         assertRemaining conn 1),
+       withCleanup conn $ do doRestore
+                             assertRemaining conn 1,
     it "when key missing: returns the remainder" $
        withCleanup conn (assertResponse 1 =<< doRestore), 
     it "when called twice: results in count of 2" $
-       withCleanup conn (doRestore >>
-                         doRestore >>
-                         assertRemaining conn 2),
+       withCleanup conn $ do doRestore
+                             doRestore
+                             assertRemaining conn 2,
     it "when called twice: returns the remainder" $
-       withCleanup conn (doRestore >>
-                         doRestore >>=
-                         assertResponse 2),
+       withCleanup conn $ do doRestore
+                             doRestore >>= assertResponse 2,
     it "when called thrice: does not exceed capacity" $
-       withCleanup conn (doRestore >>
-                         doRestore >>
-                         doRestore >>
-                         assertRemaining conn 2),
+       withCleanup conn $ do doRestore
+                             doRestore
+                             doRestore
+                             assertRemaining conn 2,
     it "when called thrice: returns the remainder bound by the capacity" $
-       withCleanup conn (doRestore >>
-                         doRestore >>
-                         doRestore >>=
-                         assertResponse 2)
+       withCleanup conn $ do doRestore
+                             doRestore
+                             doRestore >>= assertResponse 2
   ]
   where doRestore = runRedis conn $ restore cns feat cap
 
@@ -70,12 +68,12 @@ describe_drain :: Connection
                   -> Specs
 describe_drain conn = describe "Bucketeer.Persistence.drain" [
     it "when key is missing: sets the key to 0" $
-      withCleanup conn (doDrain >>
-                        assertRemaining conn 0),
+      withCleanup conn $ do doDrain
+                            assertRemaining conn 0,
     it "when key is set: sets the key to 0" $
-      withCleanup conn (overwriteKey conn "15" >>
-                        doDrain                >>
-                        assertRemaining conn 0)
+      withCleanup conn $ do overwriteKey conn "15"
+                            doDrain
+                            assertRemaining conn 0
   ]
   where doDrain = runRedis conn $ drain cns feat
 
@@ -83,12 +81,12 @@ describe_refill :: Connection
                   -> Specs
 describe_refill conn = describe "Bucketeer.Persistence.refill" [
     it "when key is missing: sets the bucket to capacity" $
-      withCleanup conn (doRefill >>
-                        assertRemaining conn 2),
+      withCleanup conn $ do doRefill
+                            assertRemaining conn 2,
     it "when key is set: sets the bucket to capacity" $
-      withCleanup conn (overwriteKey conn "15" >>
-                        doRefill               >>
-                        assertRemaining conn 2)
+      withCleanup conn $ do overwriteKey conn "15"
+                            doRefill
+                            assertRemaining conn 2
   ]
   where doRefill = runRedis conn $ refill cns feat cap
 
@@ -96,15 +94,13 @@ describe_remaining :: Connection
                   -> Specs
 describe_remaining conn = describe "Bucketeer.Persistence.remaining" [
     it "when key is missing: returns 0" $
-      withCleanup conn (assertEqual "equals 0 " 0 =<< getRemaining),
+      withCleanup conn $ assertEqual "equals 0 " 0 =<< getRemaining,
     it "when key is set: returns the key" $
-      withCleanup conn (overwriteKey conn "15" >>
-                        getRemaining >>=
-                        assertEqual "equals 15 " 15),
+      withCleanup conn $ do overwriteKey conn "15"
+                            getRemaining >>= assertEqual "equals 15 " 15,
     it "when key is corrupted: returns 0" $
-      withCleanup conn (overwriteKey conn "bogus" >>
-                        getRemaining >>=
-                        assertEqual "equals 0" 0)
+      withCleanup conn $ do overwriteKey conn "bogus"
+                            getRemaining >>= assertEqual "equals 0" 0
   ]
   where getRemaining = runRedis conn $ remaining cns feat
 
@@ -112,24 +108,23 @@ describe_tick :: Connection
                   -> Specs
 describe_tick conn = describe "Bucketeer.Persistence.tick" [
     it "when key is missing: sets the key to 0" $
-      withCleanup conn (doTick >>
-                        assertRemaining conn 0),
+      withCleanup conn $ do doTick
+                            assertRemaining conn 0,
     it "when key is missing: returns BucketExhausted" $ 
-      withCleanup conn (assertEqual "BucketExhausted" BucketExhausted =<< doTick),
+      withCleanup conn $ assertEqual "BucketExhausted" BucketExhausted =<< doTick,
     it "when key is 0: leaves the key at 0" $
-      withCleanup conn (overwriteKey conn "0" >>
-                        doTick                >>
-                        assertRemaining conn 0),
+      withCleanup conn $ do overwriteKey conn "0"
+                            doTick
+                            assertRemaining conn 0,
     it "when key is 0: returns BucketExhausted" $ 
-      withCleanup conn (assertEqual "BucketExhausted" BucketExhausted =<< doTick),
+      withCleanup conn $ assertEqual "BucketExhausted" BucketExhausted =<< doTick,
     it "when key is > 0: decrements the key" $
-      withCleanup conn (overwriteKey conn "2" >>
-                        doTick                >>
-                        assertRemaining conn 1),
+      withCleanup conn $ do overwriteKey conn "2"
+                            doTick
+                            assertRemaining conn 1,
     it "when key is > 0: returns TickAllowed with the remaining count" $ 
-      withCleanup conn (overwriteKey conn "2" >>
-                        doTick                >>=
-                        assertEqual "TickAllowed 1" (TickAllowed 1))
+      withCleanup conn $ do overwriteKey conn "2"
+                            doTick >>= assertEqual "TickAllowed 1" (TickAllowed 1)
   ]
   where doTick = runRedis conn $ tick cns feat
 
