@@ -32,7 +32,7 @@ import Network.HTTP.Types (methodPost,
                            simpleQueryToQuery)
 import Network.Wai (Application,
                     Request(..))
-import Network.Wai.Test
+import Network.Wai.Test (defaultRequest)
 import Test.Hspec.HUnit
 import Test.HUnit (assertBool)
 import Data.String.QQ (s)
@@ -122,8 +122,8 @@ specs conn bmRef = do
       post "consumers/summer/buckets/barrel_roll" $ params
 
       statusIs 201
-      --TODO: verify Location header
 
+      assertHeader "Location" "/consumers/summer/buckets/barrel_roll"
       assertRemaining conn 10
 
 
