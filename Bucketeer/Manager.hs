@@ -25,7 +25,8 @@ import Control.Concurrent (killThread,
                            forkIO,
                            ThreadId)
 import Control.Concurrent.Thread.Delay (delay)
-import Control.Monad (forever)
+import Control.Monad (forever,
+                      void)
 import Data.Aeson.Encode (encode)
 import Data.Aeson.Types (FromJSON,
                          parseJSON,
@@ -85,11 +86,11 @@ addBucket :: Bucket
              -> ThreadId
              -> BucketManager
              -> BucketManager
-addBucket bkt tid bm = H.insertWith replaceBI (cns, feat) newBI bm
-  where feat = feature bkt
-        cns  = consumer bkt
-        replaceBI _ bi = updateBI bkt bi
-        newBI = BucketInterface { bucket = bkt, refillerThread = tid }
+addBucket bkt tid = H.insertWith replaceBI (cns, feat) newBI
+  where feat        = feature bkt
+        cns         = consumer bkt
+        replaceBI _ = updateBI bkt
+        newBI       = BucketInterface { bucket = bkt, refillerThread = tid }
 
 replaceBucket :: Bucket
                  -> ThreadId
@@ -121,7 +122,7 @@ revokeConsumer cns bm = foldl' delKey (bm, []) ks
 
 storeBucketManager :: BucketManager
                       -> Redis ()
-storeBucketManager bm = set managerKey serialized  >> return ()
+storeBucketManager bm = void $ set managerKey serialized
   where serialized = serializeBucketManager bm
 
 restoreBuckets :: Redis (Either String [Bucket])
@@ -158,7 +159,7 @@ runRefiller conn Bucket { consumer    = cns,
                           feature     = feat,
                           capacity    = cap,
                           restoreRate = rate} = loop conn
-  where loop conn      = forever $ (doRestore conn >> doDelay)
+  where loop conn      = forever (doRestore conn >> doDelay)
         doRestore conn = runRedis conn $ restore cns feat cap
         doDelay        = delay $ rate * 1000000 -- delay takes microseconds
 

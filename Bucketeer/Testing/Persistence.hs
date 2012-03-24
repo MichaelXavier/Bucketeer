@@ -6,6 +6,7 @@ import Bucketeer.Types
 import Bucketeer.Util
 
 import Control.Exception (finally)
+import Control.Monad (void)
 import Control.Monad.Instances
 import Data.ByteString (ByteString(..))
 import qualified Data.ByteString as BS
@@ -142,7 +143,7 @@ describe_deleteFeature conn = describe "Bucketeer.Persistence.deleteFeature" [
                             assertDeletedBucket conn feat
   ]
   where assertDeletedBucket conn (Feature f) = assertEqual (assertMsg f) (Right False) =<<
-                                               (runRedis conn $ hexists "bucketeer:summer" f)
+                                               runRedis conn (hexists "bucketeer:summer" f)
         assertMsg f                          = "Deleted " ++ unpack f
         doDeleteFeature conn cns feat = runRedis conn $ deleteFeature cns feat
 
@@ -158,7 +159,7 @@ describe_deleteConsumer conn = describe "Bucketeer.Persistence.deleteConsumer" [
                             assertDeletedConsumer conn cns
   ]
   where assertDeletedConsumer conn (Consumer c) = assertEqual (assertMsg c) (Right False) =<<
-                                                  (runRedis conn $ exists $ BS.concat ["bucketeer:", c])
+                                                  runRedis conn (exists $ BS.concat ["bucketeer:", c])
         assertMsg c                             = "Deleted " ++ unpack c
         doDeleteConsumer conn cns = runRedis conn $ deleteConsumer cns
 
@@ -178,7 +179,7 @@ assertResponse :: (Show a, Eq a)
                   => a
                   -> Response a
                   -> IO ()
-assertResponse x resp = assertEqual message resp expected >> return ()
+assertResponse x resp = void $ assertEqual message resp expected
   where expected = Right x
         message  = "Response = " ++ show x
 
@@ -190,7 +191,7 @@ withCleanup conn io = finally io $ runRedis conn cleanup
 overwriteKey :: Connection
                 -> ByteString
                 -> IO ()
-overwriteKey conn bs = runRedis conn $ hset nsk feat' bs >> return ()
+overwriteKey conn bs = runRedis conn $ void $ hset nsk feat' bs
 
 cap :: Integer
 cap = 2

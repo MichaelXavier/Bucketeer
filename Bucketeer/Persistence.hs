@@ -40,7 +40,7 @@ restore cns feat capacity = incrToCapacity =<< remaining cns feat
   where incrToCapacity count
           | count < capacity = return . extractResponse =<< hincr nsk feat'
           | otherwise        = return $ Right count
-        nsk = namespacedKey cns
+        nsk            = namespacedKey cns
         Feature  feat' = feat
 
 drain :: Consumer
@@ -61,17 +61,17 @@ deleteConsumer cns = del [nsk] >> return ()
   where nsk = namespacedKey cns
 
 refill :: Consumer
-         -> Feature
-         -> Integer
-         -> Redis ()
+          -> Feature
+          -> Integer
+          -> Redis ()
 refill cns (Feature feat) capacity = hset nsk feat capacity' >> return ()
-  where nsk = namespacedKey cns
+  where nsk       = namespacedKey cns
         capacity' = pack . show $ capacity
 
 tick :: Consumer
         -> Feature
         -> Redis TickResult
-tick cns feat = do _ <- hsetnx nsk feat' "0"
+tick cns feat = do _     <- hsetnx nsk feat' "0"
                    count <- remaining cns feat
                    if count > 0 then decrement >> return (TickAllowed $ count - 1)
                    else                           return BucketExhausted

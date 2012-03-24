@@ -33,7 +33,7 @@ main = do conn   <- connect defaultConnectInfo
 runSpecs :: [IO Bool]
             -> IO ()
 runSpecs specs = do failed <- passed
-                    (when failed) $ exitWith $ ExitFailure 1
+                    when failed $ exitWith $ ExitFailure 1
   where passed :: IO Bool
         passed = return . all id . map not =<< sequence specs
 

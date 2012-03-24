@@ -42,7 +42,7 @@ forkWaitingIO io = do v <- newEmptyMVar
                       tid <- forkIO $ takeMVar v >> io
                       return (v, tid)
 
-applyList :: [(a -> b)]
+applyList :: [a -> b]
              -> a
              -> [b]
 applyList = sequence
