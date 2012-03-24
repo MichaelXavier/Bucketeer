@@ -118,9 +118,10 @@ postBucketR cns feat = checkConsumer cns $ do cap    <- join <$> (maybeRead . T.
                                               conn   <- getConn
                                               if (isJust cap && isJust rate) then create bmRef conn $ Bucket cns feat (fromJust cap) (fromJust rate)
                                               else                                sendError status400 [("Missing Parameters", "capacity and restore_rate params required")]
-  where create bmRef conn bkt = liftIO (atomicAddFeature bmRef conn bkt) >>
-                                liftIO (runRedis conn $ refill cns feat $ capacity bkt) >>
-                                sendResponseCreated route
+  where create bmRef conn bkt = do liftIO $ do atomicAddFeature bmRef conn bkt
+                                               runRedis conn $ refill cns feat $ capacity bkt
+                                               backgroundDump conn =<< readIORef bmRef
+                                   sendResponseCreated route
         route = BucketR cns feat
 
 deleteBucketR :: Consumer
@@ -130,8 +131,9 @@ deleteBucketR cns feat = checkFeature cns feat $ handler >> sendNoContent
   where handler      = do bmRef <- getBM
                           conn  <- getConn
                           liftIO $ revoke bmRef conn
-        revoke bmRef conn = atomicKillFeature bmRef cns feat >>
-                            liftIO (runRedis conn $ deleteFeature cns feat)
+        revoke bmRef conn = do atomicKillFeature bmRef cns feat
+                               runRedis conn $ deleteFeature cns feat
+                               backgroundDump conn =<< readIORef bmRef
 
 postBucketTickR :: Consumer
                    -> Feature
@@ -165,7 +167,8 @@ deleteConsumerR cns = checkConsumer cns $  handler >> sendNoContent
                           conn  <- getConn
                           liftIO $ revoke bmRef conn
         revoke bmRef conn = do mapM_ backgroundKill =<< atomicModifyIORef bmRef (revokeConsumer cns)
-                               liftIO $ runRedis conn $ deleteConsumer cns
+                               runRedis conn $ deleteConsumer cns
+                               backgroundDump conn =<< readIORef bmRef
 
 
 ---- Helpers
@@ -228,3 +231,8 @@ atomicModifyAndKill bmRef modify = atomicModifyIORef bmRef modify >>= maybeKill
 backgroundKill :: ThreadId
                   -> IO ()
 backgroundKill tid = forkIO (killThread tid) >> return ()
+
+backgroundDump :: Connection
+                  -> BucketManager
+                  -> IO ()
+backgroundDump conn bm = forkIO (runRedis conn $ storeBucketManager bm) >> return ()

@@ -11,10 +11,13 @@ import Bucketeer.Persistence (remaining)
 import Bucketeer.Types
 import Bucketeer.WebServer (BucketeerWeb(..))
 
+import Control.Concurrent (forkIO,
+                           ThreadId)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString.Char8 as BS8
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.HashMap.Strict as H
 import Data.IORef (newIORef,
                    IORef,
                    readIORef,
@@ -39,12 +42,6 @@ import Data.String.QQ (s)
 import Yesod (toWaiApp)
 import Yesod.Test
 import qualified Control.Monad.Trans.State as ST
-
-
----DEBUG includes
-import Control.Concurrent (forkIO,
-                           ThreadId)
-import qualified Data.HashMap.Strict as H
 
 runSpecs :: Connection
             -> IO ()
