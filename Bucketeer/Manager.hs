@@ -81,7 +81,6 @@ startBucketManager buckets conn = do threads <- mapM startRefiller buckets
 defaultBucketManager :: BucketManager
 defaultBucketManager = empty
 
---TODO: rename bucket named functions with Feature
 addBucket :: Bucket
              -> ThreadId
              -> BucketManager
