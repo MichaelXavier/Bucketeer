@@ -197,7 +197,7 @@ cap :: Integer
 cap = 2
 
 cleanup :: Redis ()
-cleanup = del [nsk] >> return ()
+cleanup = void $ del [nsk]
 
 nsk :: ByteString
 nsk = "bucketeer:buckets:summer"

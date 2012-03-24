@@ -21,7 +21,7 @@ specs = descriptions [describe_applyList,
 
 describe_applyList :: Specs
 describe_applyList = describe "Bucketeer.Util.applyList" [
-    it "returns an empty list on an empty list" $ applyList ([] :: [(Char -> Char)]) 'a' ~?= [],
+    it "returns an empty list on an empty list" $ applyList ([] :: [Char -> Char]) 'a' ~?= [],
     it "applies each function in the list"      $ applyList [(+1), (+4), (*2)] 3 ~?= [4, 7, 6]
   ]
 
