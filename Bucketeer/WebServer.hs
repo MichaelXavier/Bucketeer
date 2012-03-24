@@ -147,11 +147,11 @@ postBucketRefillR :: Consumer
                      -> Handler RepJson
 postBucketRefillR cns feat = checkFeature cns feat $ do conn <- getConn
                                                         bm   <- liftIO . readIORef =<< getBM
-                                                        --TODO: refactor this monstrosity into Manaager
-                                                        let BucketInterface { bucket = Bucket { capacity = cap } } = bm ! (cns, feat)
+                                                        let cap = unsafeGetCap bm
                                                         doRefill conn cap
                                                         jsonToRepJson $ RemainingResponse cap
   where doRefill conn cap = liftIO $ runRedis conn $ refill cns feat cap
+        unsafeGetCap bm   = capacity . bucket $ bm ! (cns, feat)
 
 postBucketDrainR :: Consumer
                     -> Feature
