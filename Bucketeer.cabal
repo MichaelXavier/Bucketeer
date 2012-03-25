@@ -1,5 +1,5 @@
 Name:                Bucketeer
-Version:             0.0.0
+Version:             0.0.1
 Description:         HTTP service for leaky bucket style rate limiting
 License:             MIT
 License-file:        LICENSE
