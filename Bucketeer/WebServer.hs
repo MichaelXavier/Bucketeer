@@ -20,7 +20,6 @@ import Bucketeer.Manager (BucketManager,
                           revokeConsumer,
                           storeBucketManager,
                           runRefiller,
-                          restoreBuckets,
                           BucketInterface(..))
 import Bucketeer.Types
 import Bucketeer.Util (forkWaitingIO,
@@ -33,7 +32,6 @@ import Control.Concurrent (forkIO,
                            ThreadId,
                            killThread)
 import Control.Concurrent.MVar (putMVar)
-import Control.Exception (finally)
 import Control.Monad (join,
                       void)
 import Data.Aeson (toJSON)
@@ -49,8 +47,7 @@ import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text as T
 import Database.Redis (Connection,
                        connect,
-                       runRedis,
-                       defaultConnectInfo)
+                       runRedis)
 import Network.HTTP.Types (Status,
                            noContent204,
                            status400,
