@@ -8,7 +8,6 @@ import Bucketeer.Util (toMaybe)
 import Control.Applicative ((<$>),
                             pure,
                             (<*>))
-import Data.Aeson.Encode (encode) --TODO: move to Manager
 import Data.Aeson.Types (FromJSON,
                          parseJSON,
                          ToJSON,

@@ -10,13 +10,23 @@ Build-Type:          Simple
 Cabal-Version:       >= 1.6
 extra-source-files:  README.md
 
-Executable wmpoller
-  Main-is:           Main.hs
-  Build-Depends:     base >= 3 && < 5,
-                     bytestring == 0.9.*,
-                     unbounded-delays == 0.1.*,
-                     hedis == 0.4.*,
-                     unordered-containers == 0.2.1*
+Executable bucketeer
+  Main-is:           Bucketeer/WebServer.hs
+  Build-Depends:     aeson                == 0.6.*,
+                     attoparsec           == 0.10.*,
+                     base                 >= 3 && < 5,
+                     bytestring           == 0.9.*,
+                     hashable             == 1.*,
+                     http-types           == 0.6.*,
+                     hedis                == 0.4.*,
+                     text                 == 0.11.*,
+                     unbounded-delays     == 0.1.*,
+                     unordered-containers >= 0.2.1 && < 0.3,
+                     wai                  == 1.1.*,
+                     wai-extra            == 1.1.*,
+                     warp                 == 1.1.*,
+                     yesod                == 0.10.*,
+                     yesod-core           == 0.10.*
                      
   GHC-Options: -Wall -O3 -threaded
 

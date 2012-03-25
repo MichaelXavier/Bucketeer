@@ -11,12 +11,10 @@ import Bucketeer.Persistence (TickResult(..))
 import Data.Aeson.Types (ToJSON(..),
                          object,
                          (.=))
-import Data.Text (Text(..))
+import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 import Network.HTTP.Types (Status(..))
-import Yesod.Content (RepPlain(..),
-                      toContent)
 
 data RemainingResponse = RemainingResponse Integer
 

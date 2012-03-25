@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Bucketeer.Manager (BucketManager(..),
+module Bucketeer.Manager (BucketManager,
                           buckets,
                           startBucketManager,
                           serializeBucketManager,
@@ -21,32 +21,18 @@ import Bucketeer.Types
 import Bucketeer.Util
 
 import Control.Applicative ((<$>))
-import Control.Concurrent (killThread,
-                           forkIO,
+import Control.Concurrent (forkIO,
                            ThreadId)
 import Control.Concurrent.Thread.Delay (delay)
 import Control.Monad (forever,
                       void)
 import Data.Aeson.Encode (encode)
-import Data.Aeson.Types (FromJSON,
-                         parseJSON,
-                         ToJSON,
-                         toJSON,
-                         object,
-                         Value(..),
-                         typeMismatch,
-                         (.=))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.List (foldl')
-import Data.Maybe (maybe)
 import Data.HashMap.Strict (HashMap,
                             empty)
-
-import Data.Text.Encoding (encodeUtf8,
-                           decodeUtf8)
-import qualified Data.Vector as V
 import qualified Data.HashMap.Strict as H
 import Database.Redis (Connection,
                        Redis,
@@ -70,8 +56,8 @@ deserializeBucketManager = decodeJSON
 startBucketManager :: [Bucket]
                       -> Connection
                       -> IO BucketManager
-startBucketManager buckets conn = do threads <- mapM startRefiller buckets
-                                     return . setupBM $ zip buckets threads
+startBucketManager bkts conn = do threads <- mapM startRefiller bkts
+                                  return . setupBM $ zip bkts threads
   where startRefiller = forkIO . runRefiller conn
         setupBM       = foldl' (uncurry . bucketAdd) newBM
         newBM         = defaultBucketManager
@@ -158,10 +144,9 @@ runRefiller :: Connection
 runRefiller conn Bucket { consumer    = cns,
                           feature     = feat,
                           capacity    = cap,
-                          restoreRate = rate} = loop conn
-  where loop conn      = forever (doRestore conn >> doDelay)
-        doRestore conn = runRedis conn $ restore cns feat cap
-        doDelay        = delay $ rate * 1000000 -- delay takes microseconds
+                          restoreRate = rate} = forever (doRestore >> doDelay)
+  where doRestore = runRedis conn $ restore cns feat cap
+        doDelay   = delay $ rate * 1000000 -- delay takes microseconds
 
 managerKey :: ByteString
 managerKey = "bucketeer:manager"

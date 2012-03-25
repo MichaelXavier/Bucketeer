@@ -7,7 +7,6 @@ module Bucketeer.Util (forkWaitableIO,
                        (.:),
                        decodeJSON) where
 
-import Control.Applicative ((<*))
 import Control.Concurrent (forkIO,
                            ThreadId)
 import Control.Concurrent.MVar (newEmptyMVar,
@@ -15,15 +14,12 @@ import Control.Concurrent.MVar (newEmptyMVar,
                                 takeMVar,
                                 MVar)
 import Control.Exception.Base (finally)
-import Control.Monad.Instances
 import Data.Aeson (json',
                    Result(..),
                    FromJSON,
                    fromJSON)
 import Data.Attoparsec (eitherResult,
                         parse)
-import Data.Aeson.Types (ToJSON,
-                         toJSON)
 import Data.ByteString (ByteString)
 import Data.Hashable (Hashable)
 import Data.HashMap.Strict (HashMap)
@@ -50,9 +46,9 @@ applyList = sequence
 toMaybe :: (a -> Bool)
            -> a
            -> Maybe a
-toMaybe pred x
-        | pred x    = Just x
-        | otherwise = Nothing
+toMaybe predicate x
+        | predicate x = Just x
+        | otherwise   = Nothing
 
 delete' :: (Eq k, Hashable k)
            => k

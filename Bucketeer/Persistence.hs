@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DoAndIfThenElse #-}
 module Bucketeer.Persistence (restore,
                               tick,
                               refill,
@@ -11,20 +12,17 @@ module Bucketeer.Persistence (restore,
 
 import Bucketeer.Types
 
-import Control.Monad (when)
-import Data.ByteString (ByteString(..))
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack,
                               readInteger)
 import Database.Redis (hincrby,
-                       set,
-                       get,
                        del,
                        hset,
                        hget,
                        hdel,
                        hsetnx,
-                       Redis(..),
+                       Redis,
                        Reply(..))
 
 type Response a = Either ByteString a
@@ -36,10 +34,10 @@ restore :: Consumer
            -> Feature
            -> Integer
            -> Redis (Response Integer)
-restore cns feat capacity = incrToCapacity =<< remaining cns feat
+restore cns feat cap = incrToCapacity =<< remaining cns feat
   where incrToCapacity count
-          | count < capacity = return . extractResponse =<< hincr nsk feat'
-          | otherwise        = return $ Right count
+          | count < cap = return . extractResponse =<< hincr nsk feat'
+          | otherwise   = return $ Right count
         nsk            = namespacedKey cns
         Feature  feat' = feat
 
@@ -64,17 +62,19 @@ refill :: Consumer
           -> Feature
           -> Integer
           -> Redis ()
-refill cns (Feature feat) capacity = hset nsk feat capacity' >> return ()
+refill cns (Feature feat) cap = hset nsk feat cap' >> return ()
   where nsk       = namespacedKey cns
-        capacity' = pack . show $ capacity
+        cap' = pack . show $ cap
 
 tick :: Consumer
         -> Feature
         -> Redis TickResult
 tick cns feat = do _     <- hsetnx nsk feat' "0"
                    count <- remaining cns feat
-                   if count > 0 then decrement >> return (TickAllowed $ count - 1)
-                   else                           return BucketExhausted
+                   if count > 0 then
+                     decrement >> return (TickAllowed $ count - 1)
+                   else
+                     return BucketExhausted
   where decrement     = hdecr nsk feat'
         nsk           = namespacedKey cns
         Feature feat' = feat

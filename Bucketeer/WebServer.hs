@@ -3,6 +3,7 @@
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DoAndIfThenElse       #-}
 module Bucketeer.WebServer (main,
                             BucketeerWeb(..)) where
 
@@ -11,8 +12,7 @@ import Bucketeer.Persistence (remaining,
                               drain,
                               refill,
                               deleteFeature,
-                              deleteConsumer,
-                              TickResult(..))
+                              deleteConsumer)
 import Bucketeer.Manager (BucketManager,
                           featureExists,
                           consumerExists,
@@ -36,10 +36,9 @@ import Control.Concurrent (forkIO,
                            killThread)
 import Control.Concurrent.MVar (putMVar)
 import Control.Exception (finally)
-import Control.Monad (when,
-                      join)
+import Control.Monad (join)
 import Data.Aeson (toJSON)
-import Data.ByteString (ByteString(..))
+import Data.ByteString (ByteString)
 import Data.HashMap.Strict ((!))
 import Data.IORef (newIORef,
                    readIORef,
@@ -47,7 +46,7 @@ import Data.IORef (newIORef,
                    atomicModifyIORef)
 import Data.Maybe (isJust,
                    fromJust)
-import Data.Text (Text(..))
+import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text as T
 import Database.Redis (Connection,
@@ -65,8 +64,6 @@ import System.Exit (exitFailure)
 import System.IO (hPutStrLn,
                   stderr)
 import Yesod
-import Yesod.Handler
-import Yesod.Request
 
 data BucketeerWeb = BucketeerWeb { connection    :: Connection,
                                    bucketManager :: IORef BucketManager }
@@ -116,8 +113,10 @@ postBucketR cns feat = checkConsumer cns $ do cap    <- join <$> (maybeRead . T.
                                               rate   <- join <$> (maybeRead . T.unpack) .: lookupPostParam "restore_rate"
                                               bmRef  <- getBM
                                               conn   <- getConn
-                                              if (isJust cap && isJust rate) then create bmRef conn $ Bucket cns feat (fromJust cap) (fromJust rate)
-                                              else                                sendError status400 [("Missing Parameters", "capacity and restore_rate params required")]
+                                              if (isJust cap && isJust rate) then
+                                                create bmRef conn $ Bucket cns feat (fromJust cap) (fromJust rate)
+                                              else
+                                                sendError status400 [("Missing Parameters", "capacity and restore_rate params required")]
   where create bmRef conn bkt = do liftIO $ do atomicAddFeature bmRef conn bkt
                                                runRedis conn $ refill cns feat $ capacity bkt
                                                backgroundDump conn =<< readIORef bmRef
@@ -185,9 +184,9 @@ checkConsumer cns@(Consumer c) inner = switch =<< readBM
 
 checkFeature cns@(Consumer c)
              feat@(Feature f) inner = do switch =<< readBM
-  where switch bm = if check bm then notFound else inner
-        check     = not . featureExists cns feat
-        notFound  = sendError notFound404 [("Feature Not Found", T.concat ["Could not find feature (",
+  where switch bm     = if checkBM bm then notFoundResp else inner
+        checkBM       = not . featureExists cns feat
+        notFoundResp  = sendError notFound404 [("Feature Not Found", T.concat ["Could not find feature (",
                                                                           b2t c,
                                                                           ", ",
                                                                           b2t f,
