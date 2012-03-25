@@ -11,7 +11,7 @@ Cabal-Version:       >= 1.6
 extra-source-files:  README.md
 
 Executable bucketeer
-  Main-is:           Bucketeer/WebServer.hs
+  Main-is:           Bucketeer/WebServer/Main.hs
   Build-Depends:     aeson                == 0.6.*,
                      attoparsec           == 0.10.*,
                      base                 >= 3 && < 5,

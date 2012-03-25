@@ -4,8 +4,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DoAndIfThenElse       #-}
-module Bucketeer.WebServer (main,
-                            BucketeerWeb(..)) where
+module Bucketeer.WebServer (BucketeerWeb(..)) where
 
 import Bucketeer.Persistence (remaining,
                               tick,
@@ -19,7 +18,6 @@ import Bucketeer.Manager (BucketManager,
                           replaceBucket,
                           revokeFeature,
                           revokeConsumer,
-                          startBucketManager,
                           storeBucketManager,
                           runRefiller,
                           restoreBuckets,
@@ -36,12 +34,12 @@ import Control.Concurrent (forkIO,
                            killThread)
 import Control.Concurrent.MVar (putMVar)
 import Control.Exception (finally)
-import Control.Monad (join)
+import Control.Monad (join,
+                      void)
 import Data.Aeson (toJSON)
 import Data.ByteString (ByteString)
 import Data.HashMap.Strict ((!))
-import Data.IORef (newIORef,
-                   readIORef,
+import Data.IORef (readIORef,
                    IORef,
                    atomicModifyIORef)
 import Data.Maybe (isJust,
@@ -57,12 +55,6 @@ import Network.HTTP.Types (Status,
                            noContent204,
                            status400,
                            notFound404)
-import Network.Wai (Middleware)
-import Network.Wai.Handler.Warp (run)
-import Network.Wai.Middleware.RequestLogger (logStdoutDev)
-import System.Exit (exitFailure)
-import System.IO (hPutStrLn,
-                  stderr)
 import Yesod
 
 data BucketeerWeb = BucketeerWeb { connection    :: Connection,
@@ -80,25 +72,8 @@ mkYesod "BucketeerWeb" [parseRoutes|
   /consumers/#Consumer/buckets/#Feature/drain  BucketDrainR  POST
 |]
 
-main :: IO ()
-main = do conn    <- connect defaultConnectInfo
-          buckets <- either (exit) (return . id) =<< (runRedis conn $ restoreBuckets)
-          bmRef   <- newIORef =<< startBucketManager buckets conn
-          let foundation = BucketeerWeb conn bmRef
-          app <- toWaiApp foundation
-          (run 3000 $ logWare app) `finally` (cleanup foundation)
-  where exit str = hPutStrLn stderr str >> exitFailure
-
-logWare :: Middleware
-logWare = logStdoutDev
 
 ---- Routes
-
-cleanup :: BucketeerWeb
-           -> IO ()
-cleanup BucketeerWeb { connection    = conn,
-                       bucketManager = bmRef } = do bm <- readIORef bmRef
-                                                    runRedis conn $ storeBucketManager bm
 
 getBucketR :: Consumer
               -> Feature
@@ -145,7 +120,7 @@ postBucketRefillR :: Consumer
                      -> Feature
                      -> Handler RepJson
 postBucketRefillR cns feat = checkFeature cns feat $ do conn <- getConn
-                                                        bm   <- liftIO . readIORef =<< getBM
+                                                        bm   <- readBM
                                                         let cap = unsafeGetCap bm
                                                         doRefill conn cap
                                                         jsonToRepJson $ RemainingResponse cap
@@ -171,17 +146,27 @@ deleteConsumerR cns = checkConsumer cns $  handler >> sendNoContent
 
 
 ---- Helpers
+getConn :: GHandler sub BucketeerWeb Connection
 getConn = return . connection    =<< getYesod
 
-getBM   = return . bucketManager =<< getYesod
+getBM :: GHandler sub BucketeerWeb (IORef BucketManager)
+getBM = return . bucketManager =<< getYesod
 
+readBM :: GHandler sub BucketeerWeb BucketManager
 readBM = liftIO . readIORef =<< getBM
 
+checkConsumer :: Consumer
+                 -> GHandler s BucketeerWeb b
+                 -> GHandler s BucketeerWeb b
 checkConsumer cns@(Consumer c) inner = switch =<< readBM
-  where switch bm = if check bm then notFound else inner
-        check     = not . consumerExists cns
-        notFound  = sendError notFound404 [("Consumer Not Found", T.concat ["Could not find consumer ", b2t c])]
+  where switch bm    = if checkBM bm then notFoundResp else inner
+        checkBM      = not . consumerExists cns
+        notFoundResp = sendError notFound404 [("Consumer Not Found", T.concat ["Could not find consumer ", b2t c])]
 
+checkFeature :: Consumer
+                -> Feature
+                -> GHandler s BucketeerWeb b
+                -> GHandler s BucketeerWeb b
 checkFeature cns@(Consumer c)
              feat@(Feature f) inner = do switch =<< readBM
   where switch bm     = if checkBM bm then notFoundResp else inner
@@ -229,9 +214,9 @@ atomicModifyAndKill bmRef modify = atomicModifyIORef bmRef modify >>= maybeKill
 
 backgroundKill :: ThreadId
                   -> IO ()
-backgroundKill tid = forkIO (killThread tid) >> return ()
+backgroundKill tid = void . forkIO $ killThread tid
 
 backgroundDump :: Connection
                   -> BucketManager
                   -> IO ()
-backgroundDump conn bm = forkIO (runRedis conn $ storeBucketManager bm) >> return ()
+backgroundDump conn bm = void . forkIO $ runRedis conn $ storeBucketManager bm
