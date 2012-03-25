@@ -5,7 +5,7 @@ import Bucketeer.Persistence
 import Bucketeer.Types
 import Bucketeer.Util
 
-import Control.Exception (finally)
+import Control.Exception (bracket_)
 import Control.Monad (void)
 import Control.Monad.Instances
 import Data.ByteString (ByteString(..))
@@ -186,7 +186,8 @@ assertResponse x resp = void $ assertEqual message resp expected
 withCleanup :: Connection
                -> IO a
                -> IO a
-withCleanup conn io = finally io $ runRedis conn cleanup
+withCleanup conn io = bracket_ clean clean io
+  where clean = runRedis conn cleanup
 
 overwriteKey :: Connection
                 -> ByteString
