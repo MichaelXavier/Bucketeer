@@ -33,6 +33,9 @@ Executable bucketeer
 Test-Suite test-bucketeer
   Type: exitcode-stdio-1.0
   Main-Is: Bucketeer/Testing/Main.hs
-  Build-Depends:  haskell98 >= 1.1.0.1 && < 1.2,
-                  hspec     == 0.9.*,
-                  HUnit     == 1.2.*
+  Build-Depends:  hspec     == 0.9.*,
+                  HUnit     == 1.2.*,
+                  string-qq == 0.0.2.*,
+                  transformers == 0.2.*,
+                  wai-test == 1.1.*,
+                  yesod-test == 0.1.*
