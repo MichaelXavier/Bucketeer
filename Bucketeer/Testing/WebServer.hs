@@ -103,20 +103,18 @@ specs conn bmRef = do
 
   --- POST /consumers/#Consumer/buckets
   describe "POST to non-existant consumer" $ do
-    it "returns a 404" $ beforeRun >> do
-      post_ "consumers/bogus/buckets/bogus"
+    let params = postParams [("capacity", "10"), ("restore_rate", "9000")]
 
-      statusIs 404
+    it "creates the consumer/feature" $ beforeRun >> do
+      post "consumers/bogus/buckets/bogus" params
 
-      bodyContains [s|"description":"Could not find consumer bogus"|]
-      bodyContains [s|"id":"Consumer Not Found"|]
-
+      statusIs 201
 
   describe "POST to existing consumer, all params" $ do
     let params = postParams [("capacity", "10"), ("restore_rate", "9000")]
 
     it "returns a 201, filling the user" $ beforeRun >> do
-      post "consumers/summer/buckets/barrel_roll" $ params
+      post "consumers/summer/buckets/barrel_roll" params
 
       statusIs 201
       --TODO: verify Location header

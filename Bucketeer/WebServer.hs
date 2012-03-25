@@ -81,14 +81,14 @@ getBucketR cns feat = checkFeature cns feat $ jsonToRepJson . RemainingResponse 
 postBucketR :: Consumer
                -> Feature
                -> Handler ()
-postBucketR cns feat = checkConsumer cns $ do cap    <- join <$> (maybeRead . T.unpack) .: lookupPostParam "capacity"
-                                              rate   <- join <$> (maybeRead . T.unpack) .: lookupPostParam "restore_rate"
-                                              bmRef  <- getBM
-                                              conn   <- getConn
-                                              if (isJust cap && isJust rate) then
-                                                create bmRef conn $ Bucket cns feat (fromJust cap) (fromJust rate)
-                                              else
-                                                sendError status400 [("Missing Parameters", "capacity and restore_rate params required")]
+postBucketR cns feat = do cap    <- join <$> (maybeRead . T.unpack) .: lookupPostParam "capacity"
+                          rate   <- join <$> (maybeRead . T.unpack) .: lookupPostParam "restore_rate"
+                          bmRef  <- getBM
+                          conn   <- getConn
+                          if (isJust cap && isJust rate) then
+                            create bmRef conn $ Bucket cns feat (fromJust cap) (fromJust rate)
+                          else
+                            sendError status400 [("Missing Parameters", "capacity and restore_rate params required")]
   where create bmRef conn bkt = do liftIO $ do atomicAddFeature bmRef conn bkt
                                                runRedis conn $ refill cns feat $ capacity bkt
                                                backgroundDump conn =<< readIORef bmRef
