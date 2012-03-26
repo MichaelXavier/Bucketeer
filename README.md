@@ -27,7 +27,7 @@ catalog. You might structure your API with middleware to authenticate the user.
                                                 ||
                                                 \/
 +---------------+                        +----------------+                                
-| Throttle Resp |<=======================| Bucketeer Tick |                                
+| Throttle Resp |<=======================|  Render Error  |                                
 +---------------+                        +----------------+                                
       
 ```
