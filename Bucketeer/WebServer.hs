@@ -46,7 +46,6 @@ import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import qualified Data.Text as T
 import Database.Redis (Connection,
-                       connect,
                        runRedis)
 import Network.HTTP.Types (Status,
                            noContent204,
