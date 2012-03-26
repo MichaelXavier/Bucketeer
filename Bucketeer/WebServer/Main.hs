@@ -7,20 +7,30 @@ import Bucketeer.Manager (restoreBuckets,
                           startBucketManager)
 import Bucketeer.WebServer (BucketeerWeb(..))
 
+import Control.Applicative ((<$>))
 import Control.Exception (finally)
 import Data.ByteString.Char8 (pack)
 import Data.IORef (newIORef,
                    readIORef)
+import Data.Maybe (catMaybes)
 import Database.Redis (connect,
                        runRedis,
                        PortID(PortNumber),
                        ConnectInfo(..))
+import Filesystem.Path.CurrentOS (encodeString)
 import Network.Wai (Middleware)
 import Network.Wai.Handler.Warp (run)
-import Network.Wai.Middleware.RequestLogger (logStdout)
+import Network.Wai.Middleware.RequestLogger (logCallback)
 import Options
 import System.Exit (exitFailure)
+import System.Log.FastLogger (initHandle,
+                              LogStr(LB),
+                              hPutLogStr)
 import System.IO (hPutStrLn,
+                  Handle,
+                  withFile,
+                  IOMode(AppendMode),
+                  stdout,
                   stderr)
 import Yesod.Dispatch (toWaiApp)
 
@@ -72,21 +82,33 @@ runServer WebServerOptions { port                = sPort,
   bmRef   <- newIORef =<< startBucketManager buckets conn
   let foundation = BucketeerWeb conn bmRef
   app     <- toWaiApp foundation
-  putStrLn $ "Server listening on port " ++ show sPort
-  runApp app `finally` cleanup foundation
+  maybeWithHandle lFile' $ \mHandle -> do
+    putStrLn $ "Server listening on port " ++ show sPort
+    runApp app mHandle `finally` cleanup foundation
   where connectInfo = ConnInfo { connectHost           = rHost,
                                  connectPort           = rPort',
                                  connectAuth           = rPass',
                                  connectMaxConnections = rMaxConn,
                                  connectMaxIdleTime    = rMaxIdle' }
-        rPass'     = pack `fmap` rPass
-        rPort'     = PortNumber $ fromIntegral rPort
-        rMaxIdle'  = fromIntegral rMaxIdle
-        runApp app = run sPort $ logWare app
-        exit str   = hPutStrLn stderr str >> exitFailure
+        rPass'             = pack <$> rPass
+        rPort'             = PortNumber $ fromIntegral rPort
+        rMaxIdle'          = fromIntegral rMaxIdle
+        lFile'             = encodeString <$> lFile
+        runApp app mHandle = run sPort $ logWare mHandle $ app
+        exit str           = hPutStrLn stderr str >> exitFailure
 
-logWare :: Middleware
-logWare = logStdout
+maybeWithHandle :: Maybe FilePath
+                   -> ((Maybe Handle) -> IO a)
+                   -> IO a
+maybeWithHandle (Just fp) action = withFile fp AppendMode $ action . Just
+maybeWithHandle Nothing   action = action Nothing
+
+logWare :: Maybe Handle
+           -> Middleware
+logWare fileHandle = logCallback writeLogs
+  where handles         = catMaybes [fileHandle, Just stdout]
+        writeLogs bs    = mapM_ initHandle handles >> mapM_ (putLog bs) handles
+        putLog bs h     = hPutLogStr h [LB bs]
 
 cleanup :: BucketeerWeb
            -> IO ()
