@@ -110,7 +110,8 @@ postBucketTickR :: Consumer
                    -> Handler RepJson
 postBucketTickR cns feat = checkFeature cns feat $ repResponse . tickResponse cns feat =<< doTick =<< getConn
   where doTick conn = liftIO $ runRedis conn $ tick cns feat
-        repResponse = either jsonToRepJson jsonToRepJson 
+        repResponse = either exhaustedRepJson jsonToRepJson 
+        exhaustedRepJson obj = sendResponseStatus enhanceYourCalm $ jsonToRep obj
 
 postBucketRefillR :: Consumer
                      -> Feature
@@ -216,3 +217,5 @@ backgroundDump :: Connection
                   -> BucketManager
                   -> IO ()
 backgroundDump conn bm = void . forkIO $ runRedis conn $ storeBucketManager bm
+
+jsonToRep = RepJson . toContent . toJSON

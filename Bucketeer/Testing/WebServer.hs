@@ -187,6 +187,17 @@ specs conn bmRef = do
       bodyContains [s|{"remaining":0}|]
       assertRemaining conn 0
 
+  describe "POST to drained bucket tick" $ do
+    it "returns 420 and an error" $ beforeRun >> do
+      liftIO $ resetCount conn 0
+      post_ "consumers/summer/buckets/barrel_roll/tick"
+
+      statusIs 420
+
+      bodyContains [s|"description":"barrel_roll bucket has been exhausted for summer"|]
+      bodyContains [s|"id":"Bucket Exhausted"|]
+      assertRemaining conn 0
+
   --- POST /consumers/#Consumer/buckets/#Bucket/refill
   describe "POST to non-existant bucket refill" $ do
     it "returns a 404" $ beforeRun >> do
