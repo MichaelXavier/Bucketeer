@@ -107,6 +107,16 @@ Commands
 
 Bucketeer is managed entirely through HTTP. 
 
+Getting List of Buckets
+=======================
+Send a GET to /
+
+```
+curl -X GET http://localhost:3000/
+
+[{"restore_rate":90,"capacity":10,"feature":"check_messages","consumer":"michael"}]
+```
+
 Getting Remaining Request Count 
 ===============================
 Send a GET to /consumers/consumername/buckets/featurename
@@ -126,7 +136,6 @@ Requires the following parameters:
 
 **restore_rate**: how many seconds to wait before restoring 1 request to that particular bucket.
 
-Example:
 
 ```
 curl -X POST -d "capacity=10&restore_rate=90" http://localhost:3000/consumers/michael/buckets/check_messages
