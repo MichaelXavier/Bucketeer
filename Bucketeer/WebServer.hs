@@ -57,8 +57,9 @@ data BucketeerWeb = BucketeerWeb { connection    :: Connection,
                                    bucketManager :: IORef BucketManager }
 
 instance Yesod BucketeerWeb where
-  approot = ApprootRelative
-  logLevel _ = LevelDebug
+  approot      = ApprootRelative
+  logLevel _   = LevelDebug
+  encryptKey _ = return Nothing
 
 mkYesod "BucketeerWeb" [parseRoutes|
   /                                            RootR         GET
