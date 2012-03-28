@@ -109,6 +109,13 @@ Bucketeer is managed entirely through HTTP.
 
 Getting Remaining Request Count 
 ===============================
+Send a GET to /consumers/consumername/buckets/featurename
+
+```
+curl -X GET http://localhost:3000/consumers/michael/buckets/check_messages
+
+{"remaining":9}
+```
 
 Creating/Replacing a Bucket
 ===========================
