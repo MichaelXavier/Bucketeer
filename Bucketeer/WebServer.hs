@@ -3,7 +3,6 @@
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE DoAndIfThenElse       #-}
 module Bucketeer.WebServer (BucketeerWeb(..)) where
 
 import Bucketeer.Persistence (remaining,
@@ -84,10 +83,9 @@ postBucketR cns feat = do cap    <- join <$> (maybeRead . T.unpack) .: lookupPos
                           rate   <- join <$> (maybeRead . T.unpack) .: lookupPostParam "restore_rate"
                           bmRef  <- getBM
                           conn   <- getConn
-                          if (isJust cap && isJust rate) then
-                            create bmRef conn $ Bucket cns feat (fromJust cap) (fromJust rate)
-                          else
-                            sendError status400 [("Missing Parameters", "capacity and restore_rate params required")]
+                          if isJust cap && isJust rate
+                            then create bmRef conn $ Bucket cns feat (fromJust cap) (fromJust rate)
+                            else sendError status400 [("Missing Parameters", "capacity and restore_rate params required")]
   where create bmRef conn bkt = do liftIO $ do atomicAddFeature bmRef conn bkt
                                                runRedis conn $ refill cns feat $ capacity bkt
                                                backgroundDump conn =<< readIORef bmRef
@@ -165,7 +163,7 @@ checkFeature :: Consumer
                 -> GHandler s BucketeerWeb b
                 -> GHandler s BucketeerWeb b
 checkFeature cns@(Consumer c)
-             feat@(Feature f) inner = do switch =<< readBM
+             feat@(Feature f) inner = switch =<< readBM
   where switch bm     = if checkBM bm then notFoundResp else inner
         checkBM       = not . featureExists cns feat
         notFoundResp  = sendError notFound404 [("Feature Not Found", T.concat ["Could not find feature (",
@@ -194,7 +192,7 @@ atomicAddFeature :: IORef BucketManager
                     -> IO ()
 atomicAddFeature bmRef conn bkt = do (mvar, tid) <- forkWaitingIO $ runRefiller conn bkt
                                      atomicModifyAndKill bmRef (replaceBucket bkt tid) >> unBlock mvar
-  where unBlock = flip putMVar $ ()
+  where unBlock = flip putMVar ()
 
 atomicKillFeature :: IORef BucketManager
                -> Consumer

@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DoAndIfThenElse #-}
 module Bucketeer.Persistence (restore,
                               tick,
                               refill,
@@ -12,6 +11,7 @@ module Bucketeer.Persistence (restore,
 
 import Bucketeer.Types
 
+import Control.Monad (void)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.ByteString.Char8 (pack,
@@ -44,25 +44,25 @@ restore cns feat cap = incrToCapacity =<< remaining cns feat
 drain :: Consumer
          -> Feature
          -> Redis ()
-drain cns (Feature feat) = hset nsk feat "0" >> return ()
+drain cns (Feature feat) = void $ hset nsk feat "0"
   where nsk = namespacedKey cns
 
 deleteFeature :: Consumer
                  -> Feature
                  -> Redis ()
-deleteFeature cns (Feature feat) = hdel nsk [feat] >> return ()
+deleteFeature cns (Feature feat) = void $ hdel nsk [feat]
   where nsk = namespacedKey cns
 
 deleteConsumer :: Consumer
                   -> Redis ()
-deleteConsumer cns = del [nsk] >> return ()
+deleteConsumer cns = void $ del [nsk]
   where nsk = namespacedKey cns
 
 refill :: Consumer
           -> Feature
           -> Integer
           -> Redis ()
-refill cns (Feature feat) cap = hset nsk feat cap' >> return ()
+refill cns (Feature feat) cap = void $ hset nsk feat cap'
   where nsk       = namespacedKey cns
         cap' = pack . show $ cap
 
@@ -71,10 +71,9 @@ tick :: Consumer
         -> Redis TickResult
 tick cns feat = do _     <- hsetnx nsk feat' "0"
                    count <- remaining cns feat
-                   if count > 0 then
-                     decrement >> return (TickAllowed $ count - 1)
-                   else
-                     return BucketExhausted
+                   if count > 0
+                     then decrement >> return (TickAllowed $ count - 1)
+                     else return BucketExhausted
   where decrement     = hdecr nsk feat'
         nsk           = namespacedKey cns
         Feature feat' = feat
@@ -86,7 +85,7 @@ remaining cns (Feature feat) = return . cast =<< hget nsk feat
   where cast (Left _)          = 0
         cast (Right Nothing)   = 0
         cast (Right (Just bs)) = castInt bs
-        castInt                = (maybe 0 fst) . readInteger
+        castInt                = maybe 0 fst . readInteger
         nsk                    = namespacedKey cns
 
 ---- Helpers

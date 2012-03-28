@@ -36,7 +36,7 @@ import Yesod.Dispatch (toWaiApp)
 
 defineOptions "WebServerOptions" $ do
   option "port" (\o -> o { optionLongFlags   = ["port"],
-                           optionShortFlags  = ['p'],
+                           optionShortFlags  = "p",
                            optionDescription = "Port. Default 3000",
                            optionDefault     = "3000",
                            optionType        = optionTypeInt })
@@ -59,7 +59,7 @@ defineOptions "WebServerOptions" $ do
                                    optionType        = optionTypeInt,
                                    optionDefault     = "30" })
   option "logFile" (\o -> o { optionLongFlags   = ["log-file"],
-                              optionShortFlags  = ['l'],
+                              optionShortFlags  = "l",
                               optionDescription = "Log file. Defaults to only logging to stdout.",
                               optionType        = optionTypeMaybe optionTypeFilePath })
 
@@ -78,7 +78,7 @@ runServer WebServerOptions { port                = sPort,
                              redisMaxIdle        = rMaxIdle,
                              logFile             = lFile } = do
   conn    <- connect connectInfo
-  buckets <- either (exit) (return . id) =<< (runRedis conn $ restoreBuckets)
+  buckets <- either exit (return . id) =<< runRedis conn restoreBuckets
   bmRef   <- newIORef =<< startBucketManager buckets conn
   let foundation = BucketeerWeb conn bmRef
   app     <- toWaiApp foundation
@@ -94,11 +94,11 @@ runServer WebServerOptions { port                = sPort,
         rPort'             = PortNumber $ fromIntegral rPort
         rMaxIdle'          = fromIntegral rMaxIdle
         lFile'             = encodeString <$> lFile
-        runApp app mHandle = run sPort $ logWare mHandle $ app
+        runApp app mHandle = run sPort $ logWare mHandle app
         exit str           = hPutStrLn stderr str >> exitFailure
 
 maybeWithHandle :: Maybe FilePath
-                   -> ((Maybe Handle) -> IO a)
+                   -> (Maybe Handle -> IO a)
                    -> IO a
 maybeWithHandle (Just fp) action = withFile fp AppendMode $ action . Just
 maybeWithHandle Nothing   action = action Nothing
