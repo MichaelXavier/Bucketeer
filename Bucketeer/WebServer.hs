@@ -221,4 +221,5 @@ backgroundDump :: Connection
                   -> IO ()
 backgroundDump conn bm = void . forkIO $ runRedis conn $ storeBucketManager bm
 
+jsonToRep :: ResponseError -> RepJson
 jsonToRep = RepJson . toContent . toJSON
