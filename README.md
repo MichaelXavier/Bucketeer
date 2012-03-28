@@ -11,7 +11,7 @@ I am currently putting the finishing touches on this project. Suggestions and
 pull requests are welcome. The minimum viable HTTP interface is tested. Some
 tasks left to do:
 
-1. Prevent Yesod from setting cookies and other unnecessary things.
+1. Authentication?
 2. Release to Hackage
 
 
