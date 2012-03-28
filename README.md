@@ -11,10 +11,8 @@ I am currently putting the finishing touches on this project. Suggestions and
 pull requests are welcome. The minimum viable HTTP interface is tested. Some
 tasks left to do:
 
-1. Implement an index action on buckets for diagnostics to see what buckets are
-   configured.
-2. Prevent Yesod from setting cookies and other unnecessary things.
-3. Release to Hackage
+1. Prevent Yesod from setting cookies and other unnecessary things.
+2. Release to Hackage
 
 
 Basics
