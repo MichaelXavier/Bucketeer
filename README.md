@@ -123,9 +123,11 @@ Send a POST to /consumers/consumername/buckets/featurename
 Requires the following parameters:
 
 **capacity**: number of requests their bucket can hold 
+
 **restore_rate**: how many seconds to wait before restoring 1 request to that particular bucket.
 
 Example:
+
 ```
 curl -X POST -d "capacity=10&restore_rate=90" http://localhost:3000/consumers/michael/buckets/check_messages
 ```
@@ -140,6 +142,7 @@ Send a POST to /consumers/consumername/buckets/featurename/tick
 
 If the user has enough remaining requests, the response will be a 200 and will
 return the remaining count:
+
 ```
 curl -X POST http://localhost:3000/consumers/michael/buckets/check_messages/tick
 
@@ -160,6 +163,7 @@ Refilling a Bucket
 Refilling a bucket resets the remaining requests count to the full capacity.
 
 Send a POST to /consumers/consumername/buckets/featurename/refill
+
 ```
 curl -X POST http://localhost:3000/consumers/michael/buckets/check_messages/refill
 
@@ -172,6 +176,7 @@ Draining a bucket sets the remaining requests count to 0. Note that the bucket
 will still continue to be refilled at the normal rate.
 
 Send a POST to /consumers/consumername/buckets/featurename/drain
+
 ```
 curl -X POST http://localhost:3000/consumers/michael/buckets/check_messages/drain
 
@@ -183,6 +188,7 @@ Deleting a bucket will remove it from Bucketeer and stop it from refilling.
 Subsequent requests to this bucket will return 404s.
 
 Send a DELETE to /consumers/consumername/buckets/featurename
+
 ```
 curl -X DELETE http://localhost:3000/consumers/michael/buckets/check_messages/drain
 
@@ -193,6 +199,7 @@ Deleting a Consumer
 Deleting a consumer will delete and halt all of their buckets.
 
 Send a DELETE to /consumers/consumername
+
 ```
 curl -X DELETE http://localhost:3000/consumers/michael
 
