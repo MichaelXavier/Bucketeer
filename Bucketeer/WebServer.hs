@@ -12,6 +12,7 @@ import Bucketeer.Persistence (remaining,
                               deleteFeature,
                               deleteConsumer)
 import Bucketeer.Manager (BucketManager,
+                          buckets,
                           featureExists,
                           consumerExists,
                           replaceBucket,
@@ -60,6 +61,7 @@ instance Yesod BucketeerWeb where
   logLevel _ = LevelDebug
 
 mkYesod "BucketeerWeb" [parseRoutes|
+  /                                            RootR         GET
   /consumers/#Consumer                         ConsumerR     DELETE
   /consumers/#Consumer/buckets/#Feature        BucketR       GET POST DELETE
   /consumers/#Consumer/buckets/#Feature/tick   BucketTickR   POST
@@ -69,6 +71,9 @@ mkYesod "BucketeerWeb" [parseRoutes|
 
 
 ---- Routes
+
+getRootR :: Handler RepJson
+getRootR = jsonToRepJson . buckets =<< readBM
 
 getBucketR :: Consumer
               -> Feature

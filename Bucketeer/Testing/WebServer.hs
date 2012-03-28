@@ -60,6 +60,17 @@ specs conn bmRef = do
       get_ "bogus"
       statusIs 404
 
+  --- GET /
+  describe "GET request to index" $ do
+    it "returns a list of buckets" $ do
+      get_ ""
+      statusIs 200
+
+      bodyContains [s|"restore_rate":1000|]
+      bodyContains [s|"capacity":2|]
+      bodyContains [s|"consumer":"summer"|]
+      bodyContains [s|"feature":"barrel_roll"|]
+
   --- DELETE /consumers/#Consumer
   describe "DELETE to non-existant consumer" $ do
     it "returns a 404" $ beforeRun >> do
