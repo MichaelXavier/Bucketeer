@@ -6,9 +6,12 @@ module Bucketeer.Persistence (restore,
                               remaining,
                               deleteFeature,
                               deleteConsumer,
+                              storeBucketManager,
+                              restoreBuckets,
                               TickResult(..),
                               Response) where
 
+import Bucketeer.Manager (BucketManager, serializeBucketManager, deserializeBucketManager)
 import Bucketeer.Types
 
 import Control.Monad (void)
@@ -18,6 +21,8 @@ import Data.ByteString.Char8 (pack,
                               readInteger)
 import Database.Redis (hincrby,
                        del,
+                       get,
+                       set,
                        hset,
                        hget,
                        hdel,
@@ -88,6 +93,18 @@ remaining cns (Feature feat) = return . cast =<< hget nsk feat
         castInt                = maybe 0 fst . readInteger
         nsk                    = namespacedKey cns
 
+storeBucketManager :: BucketManager
+                      -> Redis ()
+storeBucketManager bm = void $ set managerKey serialized
+  where serialized = serializeBucketManager bm
+
+restoreBuckets :: Redis (Either String [Bucket])
+restoreBuckets = return . loadBM =<< get managerKey
+  where loadBM (Left _)          = Left "Redis returned unexpected response"
+        loadBM (Right Nothing)   = Right []
+        loadBM (Right (Just bs)) = deserializeBucketManager bs
+
+
 ---- Helpers
 
 hdecr :: ByteString
@@ -115,3 +132,6 @@ namespaceSep = ":"
 
 namespace :: ByteString
 namespace = "bucketeer:buckets"
+
+managerKey :: ByteString
+managerKey = "bucketeer:manager"

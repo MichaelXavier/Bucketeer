@@ -2,8 +2,8 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Bucketeer.Testing.WebServer (runSpecs) where
 
-import Bucketeer.Manager (startBucketManager,
-                          consumerExists,
+import Bucketeer.Timers (startBucketManager)
+import Bucketeer.Manager (consumerExists,
                           featureExists,
                           BucketInterface(..),
                           BucketManager)

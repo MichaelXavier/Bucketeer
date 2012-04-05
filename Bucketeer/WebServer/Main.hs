@@ -2,9 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
-import Bucketeer.Manager (restoreBuckets,
-                          storeBucketManager,
-                          startBucketManager)
+import Bucketeer.Persistence (storeBucketManager,
+                              restoreBuckets)
+import Bucketeer.Timers (startBucketManager)
 import Bucketeer.WebServer (BucketeerWeb(..))
 
 import Control.Applicative ((<$>))

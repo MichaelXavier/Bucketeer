@@ -1,11 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Bucketeer.Manager (BucketManager,
                           buckets,
-                          startBucketManager,
                           serializeBucketManager,
                           deserializeBucketManager,
-                          storeBucketManager,
-                          restoreBuckets,
                           defaultBucketManager,
                           BucketInterface(..),
                           addBucket,
@@ -13,19 +10,14 @@ module Bucketeer.Manager (BucketManager,
                           revokeFeature,
                           featureExists,
                           consumerExists,
-                          runRefiller,
                           revokeConsumer) where
 
-import Bucketeer.Persistence (restore)
 import Bucketeer.Types
 import Bucketeer.Util
 
 import Control.Applicative ((<$>))
 import Control.Concurrent (forkIO,
                            ThreadId)
-import Control.Concurrent.Thread.Delay (delay)
-import Control.Monad (forever,
-                      void)
 import Data.Aeson.Encode (encode)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -52,17 +44,6 @@ serializeBucketManager = BS.concat . LBS.toChunks . encode . buckets
 deserializeBucketManager :: ByteString
                             -> Either String [Bucket]
 deserializeBucketManager = decodeJSON
-
-startBucketManager :: [Bucket]
-                      -> Connection
-                      -> IO BucketManager
-startBucketManager bkts conn = do threads <- mapM startRefiller bkts
-                                  return . setupBM $ zip bkts threads
-  where startRefiller = forkIO . runRefiller conn
-        setupBM       = foldl' (uncurry . bucketAdd) newBM
-        newBM         = defaultBucketManager
-        bucketAdd mgr bkt tid = addBucket bkt tid mgr
-
 
 
 defaultBucketManager :: BucketManager
@@ -106,17 +87,6 @@ revokeConsumer cns bm = foldl' delKey (bm, []) ks
                                 (_, Nothing)                                          -> (bm',  tids)
                                 (bm'', Just BucketInterface { refillerThread = tid }) -> (bm'', tid:tids)
 
-storeBucketManager :: BucketManager
-                      -> Redis ()
-storeBucketManager bm = void $ set managerKey serialized
-  where serialized = serializeBucketManager bm
-
-restoreBuckets :: Redis (Either String [Bucket])
-restoreBuckets = return . loadBM =<< get managerKey
-  where loadBM (Left _)          = Left "Redis returned unexpected response"
-        loadBM (Right Nothing)   = Right []
-        loadBM (Right (Just bs)) = deserializeBucketManager bs
-
 featureExists :: Consumer
                  -> Feature
                  -> BucketManager
@@ -137,16 +107,3 @@ type BucketDict = HashMap (Consumer, Feature) BucketInterface
 
 data BucketInterface = BucketInterface { bucket         :: Bucket,
                                          refillerThread :: ThreadId } deriving (Show, Eq)
-
-runRefiller :: Connection
-               -> Bucket
-               -> IO ()
-runRefiller conn Bucket { consumer    = cns,
-                          feature     = feat,
-                          capacity    = cap,
-                          restoreRate = rate} = forever (doRestore >> doDelay)
-  where doRestore = runRedis conn $ restore cns feat cap
-        doDelay   = delay $ rate * 1000000 -- delay takes microseconds
-
-managerKey :: ByteString
-managerKey = "bucketeer:manager"

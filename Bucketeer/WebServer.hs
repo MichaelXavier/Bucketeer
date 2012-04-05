@@ -10,7 +10,9 @@ import Bucketeer.Persistence (remaining,
                               drain,
                               refill,
                               deleteFeature,
+                              storeBucketManager,
                               deleteConsumer)
+import Bucketeer.Refiller (runRefiller)
 import Bucketeer.Manager (BucketManager,
                           buckets,
                           featureExists,
@@ -18,8 +20,6 @@ import Bucketeer.Manager (BucketManager,
                           replaceBucket,
                           revokeFeature,
                           revokeConsumer,
-                          storeBucketManager,
-                          runRefiller,
                           BucketInterface(..))
 import Bucketeer.Types
 import Bucketeer.Util (forkWaitingIO,

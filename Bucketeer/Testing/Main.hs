@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Bucketeer.Manager (startBucketManager)
+import Bucketeer.Timers (startBucketManager)
 import Bucketeer.Types
 import Bucketeer.WebServer (BucketeerWeb(..))
 import Bucketeer.Util
