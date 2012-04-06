@@ -27,7 +27,9 @@ import Bucketeer.Util (forkWaitingIO,
                        maybeRead)
 import Bucketeer.WebServer.Util
 
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>),
+                            (<*>),
+                            pure)
 import Control.Concurrent (forkIO,
                            ThreadId,
                            killThread)
@@ -54,7 +56,8 @@ import Network.HTTP.Types (Status,
 import Yesod
 
 data BucketeerWeb = BucketeerWeb { connection    :: Connection,
-                                   bucketManager :: IORef BucketManager }
+                                   bucketManager :: IORef BucketManager,
+                                   namespace     :: BucketeerNamespace }
 
 instance Yesod BucketeerWeb where
   approot      = ApprootRelative
@@ -79,9 +82,13 @@ getRootR = jsonToRepJson . buckets =<< readBM
 getBucketR :: Consumer
               -> Feature
               -> Handler RepJson
-getBucketR cns feat = checkFeature cns feat $ jsonToRepJson . RemainingResponse =<< doRemaining =<< getConn
-  where doRemaining conn = liftIO $ runRedis conn $ remaining cns feat 
-
+getBucketR cns feat = checkFeature cns feat $ do 
+                        conn <- getConn
+                        ns   <- getNS
+                        jsonToRepJson . RemainingResponse =<< doRemaining conn ns
+  where doRemaining conn ns = liftIO $ runRedis conn $ remainingQuery ns
+        remainingQuery ns = remaining ns cns feat
+ 
 postBucketR :: Consumer
                -> Feature
                -> Handler ()
@@ -89,13 +96,14 @@ postBucketR cns feat = do cap    <- join <$> (maybeRead . T.unpack) .: lookupPos
                           rate   <- join <$> (maybeRead . T.unpack) .: lookupPostParam "restore_rate"
                           bmRef  <- getBM
                           conn   <- getConn
+                          ns     <- getNS
                           if isJust cap && isJust rate
-                            then create bmRef conn $ Bucket cns feat (fromJust cap) (fromJust rate)
+                            then create ns bmRef conn $ Bucket cns feat (fromJust cap) (fromJust rate)
                             else sendError status400 [("Missing Parameters", "capacity and restore_rate params required")]
-  where create bmRef conn bkt = do liftIO $ do atomicAddFeature bmRef conn bkt
-                                               runRedis conn $ refill cns feat $ capacity bkt
-                                               backgroundDump conn =<< readIORef bmRef
-                                   sendResponseCreated route
+  where create ns bmRef conn bkt = do liftIO $ do atomicAddFeature ns bmRef conn bkt
+                                                  runRedis conn $ refill ns cns feat $ capacity bkt
+                                                  backgroundDump ns conn =<< readIORef bmRef
+                                      sendResponseCreated route
         route = BucketR cns feat
 
 deleteBucketR :: Consumer
@@ -104,16 +112,20 @@ deleteBucketR :: Consumer
 deleteBucketR cns feat = checkFeature cns feat $ handler >> sendNoContent
   where handler      = do bmRef <- getBM
                           conn  <- getConn
-                          liftIO $ revoke bmRef conn
-        revoke bmRef conn = do atomicKillFeature bmRef cns feat
-                               runRedis conn $ deleteFeature cns feat
-                               backgroundDump conn =<< readIORef bmRef
+                          ns    <- getNS
+                          liftIO $ revoke ns bmRef conn
+        revoke ns bmRef conn = do atomicKillFeature bmRef cns feat
+                                  runRedis conn $ deleteFeature ns cns feat
+                                  backgroundDump ns conn =<< readIORef bmRef
 
 postBucketTickR :: Consumer
                    -> Feature
                    -> Handler RepJson
-postBucketTickR cns feat = checkFeature cns feat $ repResponse . tickResponse cns feat =<< doTick =<< getConn
-  where doTick conn = liftIO $ runRedis conn $ tick cns feat
+postBucketTickR cns feat = checkFeature cns feat $ do
+                             conn <- getConn
+                             ns   <- getNS
+                             checkFeature cns feat $ repResponse . tickResponse cns feat =<< doTick conn ns
+  where doTick conn ns = liftIO $ runRedis conn $ tick ns cns feat
         repResponse = either exhaustedRepJson jsonToRepJson 
         exhaustedRepJson obj = sendResponseStatus enhanceYourCalm $ jsonToRep obj
 
@@ -121,37 +133,44 @@ postBucketRefillR :: Consumer
                      -> Feature
                      -> Handler RepJson
 postBucketRefillR cns feat = checkFeature cns feat $ do conn <- getConn
+                                                        ns   <- getNS
                                                         bm   <- readBM
                                                         let cap = unsafeGetCap bm
-                                                        doRefill conn cap
+                                                        doRefill ns conn cap
                                                         jsonToRepJson $ RemainingResponse cap
-  where doRefill conn cap = liftIO $ runRedis conn $ refill cns feat cap
+  where doRefill ns conn cap = liftIO $ runRedis conn $ refill ns cns feat cap
         unsafeGetCap bm   = capacity . bucket $ bm ! (cns, feat)
 
 postBucketDrainR :: Consumer
                     -> Feature
                     -> Handler ()
-postBucketDrainR cns feat = checkFeature cns feat $ do doDrain =<< getConn 
+postBucketDrainR cns feat = checkFeature cns feat $ do conn <- getConn
+                                                       ns   <- getNS
+                                                       liftIO $ doDrain ns conn
                                                        sendNoContent
-  where doDrain conn = liftIO $ runRedis conn $ drain cns feat
+  where doDrain ns conn = runRedis conn $ drain ns cns feat
 
 deleteConsumerR  :: Consumer
                     -> Handler ()
-deleteConsumerR cns = checkConsumer cns $  handler >> sendNoContent
-  where handler      = do bmRef <- getBM
-                          conn  <- getConn
-                          liftIO $ revoke bmRef conn
-        revoke bmRef conn = do mapM_ backgroundKill =<< atomicModifyIORef bmRef (revokeConsumer cns)
-                               runRedis conn $ deleteConsumer cns
-                               backgroundDump conn =<< readIORef bmRef
+deleteConsumerR cns = checkConsumer cns $ handler >> sendNoContent
+  where handler = do bmRef <- getBM
+                     ns    <- getNS
+                     conn  <- getConn
+                     liftIO $ revoke bmRef ns conn
+        revoke bmRef ns conn = do mapM_ backgroundKill =<< atomicModifyIORef bmRef (revokeConsumer cns)
+                                  runRedis conn $ deleteConsumer ns cns
+                                  backgroundDump ns conn =<< readIORef bmRef
 
 
 ---- Helpers
 getConn :: GHandler sub BucketeerWeb Connection
-getConn = return . connection    =<< getYesod
+getConn = connection <$> getYesod
+
+getNS :: GHandler sub BucketeerWeb BucketeerNamespace
+getNS = namespace <$> getYesod
 
 getBM :: GHandler sub BucketeerWeb (IORef BucketManager)
-getBM = return . bucketManager =<< getYesod
+getBM = bucketManager <$> getYesod
 
 readBM :: GHandler sub BucketeerWeb BucketManager
 readBM = liftIO . readIORef =<< getBM
@@ -192,12 +211,13 @@ sendError status errs = sendResponseStatus status repErrs
 sendNoContent :: GHandler s m a
 sendNoContent = sendResponseStatus noContent204 ()
 
-atomicAddFeature :: IORef BucketManager
+atomicAddFeature :: BucketeerNamespace
+                    -> IORef BucketManager
                     -> Connection
                     -> Bucket
                     -> IO ()
-atomicAddFeature bmRef conn bkt = do (mvar, tid) <- forkWaitingIO $ runRefiller conn bkt
-                                     atomicModifyAndKill bmRef (replaceBucket bkt tid) >> unBlock mvar
+atomicAddFeature ns bmRef conn bkt = do (mvar, tid) <- forkWaitingIO $ runRefiller ns conn bkt
+                                        atomicModifyAndKill bmRef (replaceBucket bkt tid) >> unBlock mvar
   where unBlock = flip putMVar ()
 
 atomicKillFeature :: IORef BucketManager
@@ -217,10 +237,11 @@ backgroundKill :: ThreadId
                   -> IO ()
 backgroundKill tid = void . forkIO $ killThread tid
 
-backgroundDump :: Connection
+backgroundDump :: BucketeerNamespace
+                  -> Connection
                   -> BucketManager
                   -> IO ()
-backgroundDump conn bm = void . forkIO $ runRedis conn $ storeBucketManager bm
+backgroundDump ns conn bm = void . forkIO $ runRedis conn $ storeBucketManager ns bm
 
 jsonToRep :: ResponseError -> RepJson
 jsonToRep = RepJson . toContent . toJSON

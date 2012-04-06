@@ -8,12 +8,13 @@ import Control.Monad (forever)
 import Database.Redis (Connection,
                        runRedis)
 
-runRefiller :: Connection
+runRefiller :: BucketeerNamespace
+               -> Connection
                -> Bucket
                -> IO ()
-runRefiller conn Bucket { consumer    = cns,
-                          feature     = feat,
-                          capacity    = cap,
-                          restoreRate = rate} = forever (doRestore >> doDelay)
-  where doRestore = runRedis conn $ restore cns feat cap
+runRefiller ns conn Bucket { consumer    = cns,
+                             feature     = feat,
+                             capacity    = cap,
+                             restoreRate = rate} = forever (doRestore >> doDelay)
+  where doRestore = runRedis conn $ restore ns cns feat cap
         doDelay   = delay $ rate * 1000000 -- delay takes microseconds

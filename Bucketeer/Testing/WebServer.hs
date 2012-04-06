@@ -46,9 +46,8 @@ import qualified Control.Monad.Trans.State as ST
 runSpecs :: Connection
             -> IO ()
 runSpecs conn = do bmRef <- newIORef =<< newBM
-                   app   <- toWaiApp $ BucketeerWeb conn bmRef
+                   app   <- toWaiApp $ BucketeerWeb conn bmRef ns
                    runTests app undefined $ specs conn bmRef
-
 specs :: Connection
          -> IORef BucketManager
          -> Specs
@@ -77,7 +76,6 @@ specs conn bmRef = do
       delete_ "consumers/bogus"
 
       statusIs 404
-      -- Not enough API exposed in test to write a more precise matcher
       bodyContains [s|"description":"Could not find consumer bogus"|]
       bodyContains [s|"id":"Consumer Not Found"|]
 
@@ -281,6 +279,9 @@ cns = Consumer "summer"
 feat :: Feature
 feat = Feature "barrel_roll"
 
+ns :: BucketeerNamespace
+ns = Just "test"
+
 bi :: ThreadId
       -> BucketInterface
 bi tid = BucketInterface { bucket         = bkt,
@@ -295,12 +296,12 @@ bkt = Bucket { consumer    = cns,
 defaultApp :: Connection
               -> IO Application
 defaultApp conn = do bmRef <- newIORef emptyBM
-                     toWaiApp $ BucketeerWeb conn bmRef
+                     toWaiApp $ BucketeerWeb conn bmRef ns
 
 loadedApp :: Connection
               -> IO Application
 loadedApp conn = do bmRef <- newIORef . fullBM =<< dummyTid
-                    toWaiApp $ BucketeerWeb conn bmRef
+                    toWaiApp $ BucketeerWeb conn bmRef ns
 
 postParams pairs = mapM_ (uncurry byName ) pairs
 
@@ -314,12 +315,12 @@ resetBMRef :: IORef (BucketManager)
               -> IO ()
 resetBMRef bmRef = (writeIORef bmRef =<< newBM)
 
-assertRemaining conn n = do actual <- liftIO $ runRedis conn $ remaining cns feat
+assertRemaining conn n = do actual <- liftIO $ runRedis conn $ remaining ns cns feat
                             assertEqual (msg actual) n actual
   where msg actual = "Remaining count expected " ++ show n ++ ", was " ++ show actual
 
 resetCount :: Connection
               -> Integer
               -> IO ()
-resetCount conn n = liftIO $ runRedis conn $ hset "bucketeer:buckets:summer" "barrel_roll" (bsN) >> return ()
+resetCount conn n = liftIO $ runRedis conn $ hset "bucketeer:test:buckets:summer" "barrel_roll" (bsN) >> return ()
   where bsN = BS8.pack . show $ n

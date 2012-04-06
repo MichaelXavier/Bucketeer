@@ -63,7 +63,7 @@ describe_restore conn = describe "Bucketeer.Persistence.restore" [
                              doRestore
                              doRestore >>= assertResponse 2
   ]
-  where doRestore = runRedis conn $ restore cns feat cap
+  where doRestore = runRedis conn $ restore ns cns feat cap
 
 describe_drain :: Connection
                   -> Specs
@@ -76,7 +76,7 @@ describe_drain conn = describe "Bucketeer.Persistence.drain" [
                             doDrain
                             assertRemaining conn 0
   ]
-  where doDrain = runRedis conn $ drain cns feat
+  where doDrain = runRedis conn $ drain ns cns feat
 
 describe_refill :: Connection
                   -> Specs
@@ -89,7 +89,7 @@ describe_refill conn = describe "Bucketeer.Persistence.refill" [
                             doRefill
                             assertRemaining conn 2
   ]
-  where doRefill = runRedis conn $ refill cns feat cap
+  where doRefill = runRedis conn $ refill ns cns feat cap
 
 describe_remaining :: Connection
                   -> Specs
@@ -103,7 +103,7 @@ describe_remaining conn = describe "Bucketeer.Persistence.remaining" [
       withCleanup conn $ do overwriteKey conn "bogus"
                             getRemaining >>= assertEqual "equals 0" 0
   ]
-  where getRemaining = runRedis conn $ remaining cns feat
+  where getRemaining = runRedis conn $ remaining ns cns feat
 
 describe_tick :: Connection
                   -> Specs
@@ -127,7 +127,7 @@ describe_tick conn = describe "Bucketeer.Persistence.tick" [
       withCleanup conn $ do overwriteKey conn "2"
                             doTick >>= assertEqual "TickAllowed 1" (TickAllowed 1)
   ]
-  where doTick = runRedis conn $ tick cns feat
+  where doTick = runRedis conn $ tick ns cns feat
 
 
 describe_deleteFeature :: Connection
@@ -143,9 +143,9 @@ describe_deleteFeature conn = describe "Bucketeer.Persistence.deleteFeature" [
                             assertDeletedBucket conn feat
   ]
   where assertDeletedBucket conn (Feature f) = assertEqual (assertMsg f) (Right False) =<<
-                                               runRedis conn (hexists "bucketeer:summer" f)
+                                               runRedis conn (hexists "bucketeer:test:summer" f)
         assertMsg f                          = "Deleted " ++ unpack f
-        doDeleteFeature conn cns feat = runRedis conn $ deleteFeature cns feat
+        doDeleteFeature conn cns feat = runRedis conn $ deleteFeature ns cns feat
 
 describe_deleteConsumer :: Connection
                            -> Specs
@@ -159,9 +159,9 @@ describe_deleteConsumer conn = describe "Bucketeer.Persistence.deleteConsumer" [
                             assertDeletedConsumer conn cns
   ]
   where assertDeletedConsumer conn (Consumer c) = assertEqual (assertMsg c) (Right False) =<<
-                                                  runRedis conn (exists $ BS.concat ["bucketeer:", c])
+                                                  runRedis conn (exists $ BS.concat ["bucketeer:test:buckets:", c])
         assertMsg c                             = "Deleted " ++ unpack c
-        doDeleteConsumer conn cns = runRedis conn $ deleteConsumer cns
+        doDeleteConsumer conn cns = runRedis conn $ deleteConsumer ns cns
 
 --- Helpers
 
@@ -201,7 +201,7 @@ cleanup :: Redis ()
 cleanup = void $ del [nsk]
 
 nsk :: ByteString
-nsk = "bucketeer:buckets:summer"
+nsk = "bucketeer:test:buckets:summer"
 
 feat :: Feature
 feat = Feature feat'
@@ -214,3 +214,6 @@ cns = Consumer cns'
 
 cns' :: ByteString
 cns' = "summer"
+
+ns :: Maybe ByteString
+ns = Just "test"

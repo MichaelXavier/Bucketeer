@@ -40,6 +40,10 @@ defineOptions "WebServerOptions" $ do
                            optionDescription = "Port. Default 3000",
                            optionDefault     = "3000",
                            optionType        = optionTypeInt })
+  option "namespaceOpt" (\o -> o { optionLongFlags   = ["namespcae"],
+                                   optionShortFlags  = "n",
+                                   optionDescription = "Optional redis namespace so multiple bucketeers can run on the same Redis instance",
+                                   optionType        = optionTypeMaybe optionTypeString })
   option "redisHost" (\o -> o { optionLongFlags   = ["redis-host"],
                                 optionDescription = "Redis host. Default localhost",
                                 optionDefault     = "localhost" })
@@ -71,6 +75,7 @@ main = runCommand $ \opts _ -> runServer opts
 runServer :: WebServerOptions
              -> IO ()
 runServer WebServerOptions { port                = sPort,
+                             namespaceOpt        = ns,
                              redisHost           = rHost,
                              redisPort           = rPort,
                              redisPassword       = rPass,
@@ -78,9 +83,9 @@ runServer WebServerOptions { port                = sPort,
                              redisMaxIdle        = rMaxIdle,
                              logFile             = lFile } = do
   conn    <- connect connectInfo
-  buckets <- either exit (return . id) =<< runRedis conn restoreBuckets
-  bmRef   <- newIORef =<< startBucketManager buckets conn
-  let foundation = BucketeerWeb conn bmRef
+  buckets <- either exit (return . id) =<< runRedis conn (restoreBuckets ns')
+  bmRef   <- newIORef =<< startBucketManager buckets ns' conn
+  let foundation = BucketeerWeb conn bmRef ns'
   app     <- toWaiApp foundation
   maybeWithHandle lFile' $ \mHandle -> do
     putStrLn $ "Server listening on port " ++ show sPort
@@ -90,6 +95,7 @@ runServer WebServerOptions { port                = sPort,
                                  connectAuth           = rPass',
                                  connectMaxConnections = rMaxConn,
                                  connectMaxIdleTime    = rMaxIdle' }
+        ns'                = pack <$> ns
         rPass'             = pack <$> rPass
         rPort'             = PortNumber $ fromIntegral rPort
         rMaxIdle'          = fromIntegral rMaxIdle
@@ -113,5 +119,6 @@ logWare fileHandle = logCallback writeLogs
 cleanup :: BucketeerWeb
            -> IO ()
 cleanup BucketeerWeb { connection    = conn,
-                       bucketManager = bmRef } = do bm <- readIORef bmRef
-                                                    runRedis conn $ storeBucketManager bm
+                       bucketManager = bmRef,
+                       namespace     = ns } = do bm <- readIORef bmRef
+                                                 runRedis conn $ storeBucketManager ns bm

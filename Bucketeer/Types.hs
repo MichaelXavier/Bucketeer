@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Bucketeer.Types (Consumer(..),
                         Feature(..),
+                        BucketeerNamespace,
                         Bucket(..)) where
 
 import Bucketeer.Util (toMaybe)
@@ -65,6 +66,8 @@ data Bucket = Bucket { consumer     :: Consumer,
                        feature      :: Feature,
                        capacity     :: Integer,
                        restoreRate  :: Integer } deriving (Show, Eq) -- ^ 1 restored every restoreRate second
+
+type BucketeerNamespace = Maybe ByteString
 
 instance ToJSON Bucket where
   toJSON Bucket { consumer     = cns,
