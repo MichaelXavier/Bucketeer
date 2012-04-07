@@ -134,12 +134,14 @@ Requires the following parameters:
 
 **capacity**: number of requests their bucket can hold 
 
-**restore_rate**: how many seconds to wait before restoring 1 request to that particular bucket.
+**restore_rate**: how many *milliseconds* to wait before restoring 1 request to that particular bucket.
 
 
 ```
-curl -X POST -d "capacity=10&restore_rate=90" http://localhost:3000/consumers/michael/buckets/check_messages
+curl -X POST -d "capacity=10&restore_rate=9000" http://localhost:3000/consumers/michael/buckets/check_messages
 ```
+
+This bucket will restore 1 request every 9 seconds.
 
 The URL for the bucket will be returned in the *Location* header.
 

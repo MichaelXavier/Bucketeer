@@ -65,7 +65,7 @@ instance PathPiece Feature where
 data Bucket = Bucket { consumer     :: Consumer,
                        feature      :: Feature,
                        capacity     :: Integer,
-                       restoreRate  :: Integer } deriving (Show, Eq) -- ^ 1 restored every restoreRate second
+                       restoreRate  :: Integer } deriving (Show, Eq) -- ^ 1 restored every restoreRate milliseconds
 
 type BucketeerNamespace = Maybe ByteString
 

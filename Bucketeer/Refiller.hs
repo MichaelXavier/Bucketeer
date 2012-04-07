@@ -17,4 +17,4 @@ runRefiller ns conn Bucket { consumer    = cns,
                              capacity    = cap,
                              restoreRate = rate} = forever (doRestore >> doDelay)
   where doRestore = runRedis conn $ restore ns cns feat cap
-        doDelay   = delay $ rate * 1000000 -- delay takes microseconds
+        doDelay   = delay $ rate * 1000 -- delay takes microseconds
