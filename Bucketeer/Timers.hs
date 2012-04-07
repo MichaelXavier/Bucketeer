@@ -4,7 +4,6 @@ import Bucketeer.Manager
 import Bucketeer.Refiller (runRefiller)
 import Bucketeer.Types
 
-import Control.Applicative ((<$>))
 import Control.Concurrent (forkIO)
 import Data.List(foldl')
 import Database.Redis (Connection)

@@ -27,9 +27,7 @@ import Bucketeer.Util (forkWaitingIO,
                        maybeRead)
 import Bucketeer.WebServer.Util
 
-import Control.Applicative ((<$>),
-                            (<*>),
-                            pure)
+import Control.Applicative ((<$>))
 import Control.Concurrent (forkIO,
                            ThreadId,
                            killThread)

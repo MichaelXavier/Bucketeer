@@ -186,7 +186,7 @@ assertResponse x resp = void $ assertEqual message resp expected
 withCleanup :: Connection
                -> IO a
                -> IO a
-withCleanup conn io = bracket_ clean clean io
+withCleanup conn = bracket_ clean clean
   where clean = runRedis conn cleanup
 
 overwriteKey :: Connection
