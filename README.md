@@ -59,9 +59,6 @@ If you have all the dependencies installed, it is much easier to just run
 ```
 make quick_spec
 ```
-Make sure you have redis running locally on the default port before running the
-specs. **DO NOT** run specs in production. They will wipe out test data in
-redis between runs.
 
 To build the project, simply run
 
@@ -81,6 +78,7 @@ Help Options:
 
 Application Options:
   -p, --port                  Port. Default 3000
+  -n, --namespcae             Optional redis namespace so multiple bucketeers can run on the same Redis instance
   --redis-host                Redis host. Default localhost
   --redis-port                Redis port. Default 6379
   --redis-password            Redis password. Default no password.
@@ -99,6 +97,10 @@ Bucketeer exits or its list of buckets is modified, it will dump its
 configuration to redis as JSON under the key "bucketeer:manager". Upon starting
 Bucketeer, it will reload this config. If the config somehow becomes hosed, you
 can always delete that key and Bucketeer will start fresh.
+
+If you need to run multiple, logically separate instances of Bucketeer, pass
+the -n flag to the executable to specify a namespace. This way, Bucketeer will
+persist and read from separate locations for each instance.
 
 Commands
 ========
