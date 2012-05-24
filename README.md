@@ -50,6 +50,12 @@ status from you, such as 503.
 
 Setup
 =====
+To build Bucketeer you'll need cabal-dev:
+
+```
+cabal install cabal-dev
+```
+
 To build and run the test suite with cabal, run 
 ```
 make spec
