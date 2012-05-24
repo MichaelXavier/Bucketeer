@@ -1,12 +1,15 @@
-CABAL=cabal
+CABAL=cabal-dev
 
 all: build
 
 build: configure Main.hs Bucketeer/*.hs
 	$(CABAL) build
 	
-configure: Bucketeer.cabal
+configure: Bucketeer.cabal install_dependencies
 	$(CABAL) configure
+
+install_dependencies:
+	$(CABAL) install --only-dependencies
 
 clean:
 	$(CABAL) clean
