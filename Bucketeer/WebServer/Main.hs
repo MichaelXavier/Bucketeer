@@ -7,12 +7,15 @@ import Bucketeer.Persistence (storeBucketManager,
 import Bucketeer.Timers (startBucketManager)
 import Bucketeer.WebServer (BucketeerWeb(..))
 
-import Control.Applicative ((<$>))
+import Control.Applicative ((<$>),
+                            (<*>),
+                            pure)
 import Control.Exception (finally)
 import Data.ByteString.Char8 (pack)
 import Data.IORef (newIORef,
                    readIORef)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes,
+                   fromMaybe)
 import Database.Redis (connect,
                        runRedis,
                        PortID(PortNumber),
@@ -22,6 +25,7 @@ import Network.Wai (Middleware)
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Middleware.RequestLogger (logCallback)
 import Options
+import System.Posix.Env (getEnvDefault)
 import System.Exit (exitFailure)
 import System.Log.FastLogger (initHandle,
                               LogStr(LB),
@@ -37,9 +41,8 @@ import Yesod.Dispatch (toWaiApp)
 defineOptions "WebServerOptions" $ do
   option "port" (\o -> o { optionLongFlags   = ["port"],
                            optionShortFlags  = "p",
-                           optionDescription = "Port. Default 3000",
-                           optionDefault     = "3000",
-                           optionType        = optionTypeInt })
+                           optionDescription = "Port. Default 3000, can also be set with PORT env var (for keter deployment)",
+                           optionType        = optionTypeMaybe optionTypeInt })
   option "namespaceOpt" (\o -> o { optionLongFlags   = ["namespcae"],
                                    optionShortFlags  = "n",
                                    optionDescription = "Optional redis namespace so multiple bucketeers can run on the same Redis instance",
@@ -87,21 +90,23 @@ runServer WebServerOptions { port                = sPort,
   bmRef   <- newIORef =<< startBucketManager buckets ns' conn
   let foundation = BucketeerWeb conn bmRef ns'
   app     <- toWaiApp foundation
+  sPort'  <- fromMaybe <$> getPortFromEnv <*> pure sPort
   maybeWithHandle lFile' $ \mHandle -> do
-    putStrLn $ "Server listening on port " ++ show sPort
-    runApp app mHandle `finally` cleanup foundation
+    putStrLn $ "Server listening on port " ++ show sPort'
+    runApp app mHandle sPort' `finally` cleanup foundation
   where connectInfo = ConnInfo { connectHost           = rHost,
                                  connectPort           = rPort',
                                  connectAuth           = rPass',
                                  connectMaxConnections = rMaxConn,
                                  connectMaxIdleTime    = rMaxIdle' }
-        ns'                = pack <$> ns
-        rPass'             = pack <$> rPass
-        rPort'             = PortNumber $ fromIntegral rPort
-        rMaxIdle'          = fromIntegral rMaxIdle
-        lFile'             = encodeString <$> lFile
-        runApp app mHandle = run sPort $ logWare mHandle app
-        exit str           = hPutStrLn stderr str >> exitFailure
+        ns'                       = pack <$> ns
+        rPass'                    = pack <$> rPass
+        rPort'                    = PortNumber $ fromIntegral rPort
+        rMaxIdle'                 = fromIntegral rMaxIdle
+        lFile'                    = encodeString <$> lFile
+        runApp app mHandle sPort' = run sPort' $ logWare mHandle app
+        exit str                  = hPutStrLn stderr str >> exitFailure
+        getPortFromEnv            = read `fmap` getEnvDefault "PORT" "3000"
 
 maybeWithHandle :: Maybe FilePath
                    -> (Maybe Handle -> IO a)
