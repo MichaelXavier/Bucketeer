@@ -16,8 +16,7 @@ import Bucketeer.Types
 import Bucketeer.Util
 
 import Control.Applicative ((<$>))
-import Control.Concurrent (forkIO,
-                           ThreadId)
+import Control.Concurrent (ThreadId)
 import Data.Aeson.Encode (encode)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -26,11 +25,6 @@ import Data.List (foldl')
 import Data.HashMap.Strict (HashMap,
                             empty)
 import qualified Data.HashMap.Strict as H
-import Database.Redis (Connection,
-                       Redis,
-                       set,
-                       get,
-                       runRedis)
 
 type BucketManager = BucketDict
 
