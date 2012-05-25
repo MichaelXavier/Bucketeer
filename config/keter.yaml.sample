@@ -1,0 +1,2 @@
+exec: ../dist/build/bucketeer/bucketeer
+host: localhost
