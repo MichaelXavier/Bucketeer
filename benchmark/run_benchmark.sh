@@ -5,6 +5,8 @@ base_url=127.0.0.1:$port
 iterations=1000
 test_bucket=/consumers/test/buckets/feature
 gnuplot_config="set xlabel 'concurrency'; set ylabel 'Req/Sec'; set datafile separator ','; set style data histograms; set style fill solid 1.0 border -1; set yrange [0:]; plot '-' with boxes"
+max_concurrency=$1
+echo "running with max concurrency $max_concurrency"
 
 function check_ab {
   which ab > /dev/null
@@ -12,6 +14,10 @@ function check_ab {
 
 function check_gnuplot {
   which gnuplot > /dev/null
+}
+
+function check_redis {
+  redis-cli ping > /dev/null
 }
 
 function run_benchmark {
@@ -35,7 +41,7 @@ function benchmark_pass {
   echo "set title '$test_name'; set terminal png; set output 'reports/$basename.png'; $gnuplot_config" > $outfile
 
   echo -n $test_name
-  for concurrency in {1..10}; do
+  for ((concurrency=1; concurrency < $max_concurrency; concurrency++)); do
     echo -n "."
     result=$(run_benchmark $concurrency $path)
     echo "$concurrency,$result" >> $outfile
@@ -101,9 +107,12 @@ function tick_bucket_benchmark {
 
 check_ab
 check_gnuplot
+check_redis
 
 pid=$(start_server)
 outdir=reports
+
+trap "kill $pid &> /dev/null" EXIT
 
 echo "Running server with pid $pid"
 rm -rf $outdir
@@ -115,5 +124,3 @@ non_empty_set_benchmark
 get_bucket_benchmark
 get_bucket_miss_benchmark
 tick_bucket_benchmark
-
-kill $pid &> /dev/null

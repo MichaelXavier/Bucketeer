@@ -1,6 +1,9 @@
 CABAL=cabal-dev
 OUTPUT_BIN=dist/build/bucketeer/bucketeer
 CONFIG_OPTS=
+MAX_BENCH_CONCURRENCY=15
+
+.PHONY: benchmark
 
 all: build
 	strip $(OUTPUT_BIN)
@@ -38,3 +41,6 @@ spec: configure_tests
 
 configure_tests:
 	$(CABAL) configure --enable-tests --user
+
+benchmark:
+	cd benchmark && ./run_benchmark.sh $(MAX_BENCH_CONCURRENCY)
