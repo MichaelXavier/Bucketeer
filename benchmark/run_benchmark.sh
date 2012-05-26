@@ -4,9 +4,14 @@ port=3000
 base_url=127.0.0.1:$port
 iterations=1000
 test_bucket=/consumers/test/buckets/feature
+gnuplot_config="set xlabel 'concurrency'; set ylabel 'Req/Sec'; set datafile separator ','; set style data histograms; set style fill solid 1.0 border -1; set yrange [0:]; plot '-' with boxes"
 
 function check_ab {
   which ab > /dev/null
+}
+
+function check_gnuplot {
+  which gnuplot > /dev/null
 }
 
 function run_benchmark {
@@ -22,11 +27,12 @@ function start_server {
 }
 
 function benchmark_pass {
-  outfile=reports/$1
+  basename=$1
+  outfile=reports/$basename.csv
   test_name=$2
   path=$3
 
-  truncate -s 0 $outfile
+  echo "set title '$test_name'; set terminal png; set output 'reports/$basename.png'; $gnuplot_config" > $outfile
 
   echo -n $test_name
   for concurrency in {1..10}; do
@@ -35,6 +41,7 @@ function benchmark_pass {
     echo "$concurrency,$result" >> $outfile
   done
   echo
+  plot $basename
 }
 
 function clear_bucket {
@@ -53,28 +60,35 @@ function reset_bucket {
 #benchmarks
 function empty_set_benchmark {
   echo "*** Running empty set benchmark (does not hit redis)"
-  benchmark_pass empty_set.csv "empty set" /
+  benchmark_pass empty_set "empty set" /
+
 }
+
+function plot {
+  echo "plotting $1.csv"
+  gnuplot < reports/$1.csv
+}
+
 
 function non_empty_set_benchmark {
   reset_bucket
 
   echo "*** Running non empty set benchmark (does not hit redis)"
-  benchmark_pass non_empty_set.csv "non empty set" /
+  benchmark_pass non_empty_set "non empty set" /
 }
 
 function get_bucket_benchmark {
   reset_bucket
 
   echo "*** Running get bucket benchmark (retrieves from redis)"
-  benchmark_pass get_bucket_benchmark.csv "get bucket" $test_bucket
+  benchmark_pass get_bucket_benchmark "get bucket" $test_bucket
 }
 
 function get_bucket_miss_benchmark {
   reset_bucket
 
   echo "*** Running get bucket benchmark miss (retrieves from redis)"
-  benchmark_pass get_bucket_miss_benchmark.csv "get bucket miss" /consumers/test/buckets/bogus
+  benchmark_pass get_bucket_miss_benchmark "get bucket miss" /consumers/test/buckets/bogus
 
 }
 
@@ -82,15 +96,17 @@ function tick_bucket_benchmark {
   reset_bucket
 
   echo "*** Running tick bucket benchmark (writes to redis)"
-  benchmark_pass tick_bucket.csv "tick bucket" $test_bucket
+  benchmark_pass tick_bucket "tick bucket" $test_bucket
 }
 
 check_ab
+check_gnuplot
 
 pid=$(start_server)
 outdir=reports
 
 echo "Running server with pid $pid"
+rm -rf $outdir
 mkdir -p $outdir
 
 # empty set benchmarks
