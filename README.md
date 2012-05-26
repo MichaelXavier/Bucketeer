@@ -121,6 +121,27 @@ its port from the `PORT` environment variable if its set, as keter expects, so
 you shouldn't set that in your keter.yaml file as a flag, because keter
 determines this at runtime.
 
+Benchmarking
+============
+I've set up a poor-man's benchmarking suite. The suite isn't exhaustive, but it
+hits a few different cases using different levels of concurrency. In order to
+run benchmarks you need:
+
+1. gnuplot
+2. apache benchmark (ab)
+3. redis running on the default port
+4. nothing using port 3000
+
+To run benchmarks, run:
+
+```
+make benchmark
+```
+
+This will run ab against the server on several key routes, using increasing
+levels of concurrency (1 to 15). Output will be generated in
+`benchmark/reports`. It will generate csv reports and gnuplot bar graphs.
+
 Commands
 ========
 

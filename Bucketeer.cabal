@@ -33,7 +33,7 @@ Executable bucketeer
                      yesod                == 0.10.*,
                      yesod-core           == 0.10.*
                      
-  GHC-Options: -Wall -O3 -threaded
+  GHC-Options: -Wall -O2 -threaded
 
 Test-Suite test-bucketeer
   Type: exitcode-stdio-1.0
