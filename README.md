@@ -108,6 +108,19 @@ If you need to run multiple, logically separate instances of Bucketeer, pass
 the -n flag to the executable to specify a namespace. This way, Bucketeer will
 persist and read from separate locations for each instance.
 
+Deployment
+==========
+Bucketeer supports deployment through [keter](https://github.com/snoyberg/keter).
+
+Make sure to copy `config/keter.yaml.sample` to `config/keter.yaml` and make
+any changes you need for deployment.
+
+running `make` will generate a `bucketeer.keter` file. Sync this to your keter
+incoming directory for zero downtime deployment. Note that Bucketeer will take
+its port from the `PORT` environment variable if its set, as keter expects, so
+you shouldn't set that in your keter.yaml file as a flag, because keter
+determines this at runtime.
+
 Commands
 ========
 
