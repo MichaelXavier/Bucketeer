@@ -220,7 +220,7 @@ Subsequent requests to this bucket will return 404s.
 Send a DELETE to /consumers/consumername/buckets/featurename
 
 ```
-curl -X DELETE http://localhost:3000/consumers/michael/buckets/check_messages/drain
+curl -X DELETE http://localhost:3000/consumers/michael/buckets/check_messages
 
 ```
 
