@@ -63,7 +63,7 @@ specs conn bmRef = do
   --- GET /
   describe "GET request to index" $ do
     it "returns a list of buckets" $ do
-      get_ ""
+      get_ "/"
       statusIs 200
 
       bodyContains [s|"restore_rate":1000|]

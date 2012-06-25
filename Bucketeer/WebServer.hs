@@ -56,6 +56,7 @@ import qualified Data.Text.Lazy as TL
 import Database.Redis (Connection,
                        runRedis)
 import Network.HTTP.Types (Status,
+                           badRequest400,
                            created201,
                            noContent204,
                            status400,
@@ -74,66 +75,73 @@ bucketeerServer BucketeerWeb { connection    = conn,
   get "/" $
     json . buckets =<< readBM
 
-  delete "/consumers/:consumer" $ withConsumer $ \cns -> do 
+  delete "/consumers/:consumer" $ checkConsumer $ \cns -> do
     atomicRevokeConsumer bmRef ns conn cns
     sendNoContent
 
-  get "/consumers/:consumer/buckets/:feature" $ withFeature $ \cns feat -> do 
+  get "/consumers/:consumer/buckets/:feature" $ checkFeature $ \cns feat -> do 
     json =<< getRemaining conn ns cns feat
 
-  post "/consumers/:consumer/buckets/:feature" $ withFeature $ \cns@(Consumer c)
-                                                                feat@(Feature f) -> do 
-    cap  <- param "capacity"
-    rate <- param "restore_rate"
-    create ns bmRef conn $ Bucket cns feat cap rate
-    sendCreated . b2t . mconcat $ ["/consumers/", c, "/buckets/", f]
+  post "/consumers/:consumer/buckets/:feature" $ extractFeature $ \cns@(Consumer c)
+                                                                   feat@(Feature f) -> do 
+    rescueWith missingCapRestore $ do
+      cap  <- param "capacity"
+      rate <- param "restore_rate"
+      create ns bmRef conn $ Bucket cns feat cap rate
+      sendCreated . b2t . mconcat $ ["/consumers/", c, "/buckets/", f]
 
-  delete "/consumers/:consumer/buckets/:feature" $ withFeature $ \cns feat -> do 
+  delete "/consumers/:consumer/buckets/:feature" $ checkFeature $ \cns feat -> do 
     atomicRevokeFeature bmRef ns conn cns feat
     sendNoContent
 
-  post "/consumers/:consumer/buckets/:feature/tick" $ withFeature $ \cns feat -> do
+  post "/consumers/:consumer/buckets/:feature/tick" $ checkFeature $ \cns feat -> do
     response <- liftIO $ runRedis conn $ tick ns cns feat
     either sendExhausted json $ tickResponse cns feat response
 
-  post "/consumers/:consumer/buckets/:feature/refill" $ withFeature $ \cns feat -> do
+  post "/consumers/:consumer/buckets/:feature/refill" $ checkFeature $ \cns feat -> do
     bm <- readBM
     let cap = capacity . bucket $ bm ! (cns, feat)
     liftIO $ runRedis conn $ refill ns cns feat cap
+    json $ RemainingResponse cap
 
-  post "/consumers/:consumer/buckets/:feature/drain" $ withFeature $ \cns feat -> do
+  post "/consumers/:consumer/buckets/:feature/drain" $ checkFeature $ \cns feat -> do
     liftIO $ runRedis conn $ drain ns cns feat
     sendNoContent
 
   notFound $ sendError notFound404 []
 
   where readBM              = liftIO . readIORef $ bmRef
-        withConsumer action = do cns <- Consumer `fmap` param "consumer"
-                                 bm  <- readBM
-                                 checkConsumer cns bm action
-        withFeature action  = do cns  <- Consumer `fmap` param "consumer"
-                                 feat <- Feature `fmap` param "feature"
-                                 bm   <- readBM
-                                 checkFeature cns feat bm action
-        checkConsumer cns@(Consumer c)
-                      bm
-                      action = if consumerExists cns bm 
-                                 then action cns
-                                 else sendError notFound404
-                                                [("Consumer Not Found",
-                                                 mconcat ["Could not find consumer ", b2t c])]
-        checkFeature cns@(Consumer c)
-                     feat@(Feature f)
-                     bm
-                     action = if consumerExists cns bm 
-                                then action cns feat
-                                else sendError notFound404
-                                               [("Feature Not Found",
-                                                mconcat ["Could not find feature (", b2t c, ", ", b2t f, ")"])]
+        extractFeature action
+                       c
+                       f = action (Consumer c) (Feature f)
+        checkConsumer action
+                      c      = do bm <- readBM
+                                  if consumerExists cns bm 
+                                    then action cns
+                                    else sendError notFound404
+                                                    [("Consumer Not Found",
+                                                     mconcat ["Could not find consumer ", b2t c])]
+          where cns = Consumer c
+        checkFeature action
+                     c
+                     f = do bm <- readBM
+                            if featureExists cns feat bm 
+                               then action cns feat
+                               else sendError notFound404
+                                              [("Feature Not Found",
+                                               mconcat ["Could not find feature (", b2t c, ", ", b2t f, ")"])]
+          where cns = Consumer c
+                feat = Feature f
+        rescueWith = flip rescue
 
 data BucketeerWeb = BucketeerWeb { connection    :: Connection,
                                    bucketManager :: IORef BucketManager,
                                    namespace     :: BucketeerNamespace }
+
+missingCapRestore :: TL.Text
+                     -> ActionM ()
+missingCapRestore _ = sendError badRequest400 [("Missing Parameters",
+                                                "capacity and restore_rate params required")]
 
 create :: BucketeerNamespace
           -> IORef BucketManager
