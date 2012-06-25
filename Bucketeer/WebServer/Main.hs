@@ -5,7 +5,7 @@ module Main (main) where
 import Bucketeer.Persistence (storeBucketManager,
                               restoreBuckets)
 import Bucketeer.Timers (startBucketManager)
-import Bucketeer.WebServer (BucketeerWeb(..))
+import Bucketeer.WebServer (BucketeerWeb(..), bucketeerServer)
 
 import Control.Applicative ((<$>),
                             (<*>),
@@ -36,7 +36,8 @@ import System.IO (hPutStrLn,
                   IOMode(AppendMode),
                   stdout,
                   stderr)
-import Yesod.Dispatch (toWaiApp)
+
+import Web.Scotty
 
 defineOptions "WebServerOptions" $ do
   option "port" (\o -> o { optionLongFlags   = ["port"],
@@ -89,7 +90,7 @@ runServer WebServerOptions { port                = sPort,
   buckets <- either exit (return . id) =<< runRedis conn (restoreBuckets ns')
   bmRef   <- newIORef =<< startBucketManager buckets ns' conn
   let foundation = BucketeerWeb conn bmRef ns'
-  app     <- toWaiApp foundation
+  app     <- scottyApp $ bucketeerServer foundation
   sPort'  <- fromMaybe <$> getPortFromEnv <*> pure sPort
   maybeWithHandle lFile' $ \mHandle -> do
     putStrLn $ "Server listening on port " ++ show sPort'

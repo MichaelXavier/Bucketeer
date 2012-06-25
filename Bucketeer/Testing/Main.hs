@@ -20,8 +20,6 @@ import qualified Test.Hspec as HS
 import qualified Test.Hspec.Monadic as HSM
 import System.Exit (ExitCode(..),
                     exitWith)
-import Yesod (toWaiApp)
-
 
 main :: IO ()
 main = do conn   <- connect defaultConnectInfo

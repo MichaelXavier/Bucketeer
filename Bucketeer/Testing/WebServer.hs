@@ -9,7 +9,8 @@ import Bucketeer.Manager (consumerExists,
                           BucketManager)
 import Bucketeer.Persistence (remaining)
 import Bucketeer.Types
-import Bucketeer.WebServer (BucketeerWeb(..))
+import Bucketeer.WebServer (BucketeerWeb(..),
+                            bucketeerServer)
 
 import Control.Concurrent (forkIO,
                            ThreadId)
@@ -39,14 +40,14 @@ import Network.Wai.Test
 import Test.Hspec.HUnit
 import Test.HUnit (assertBool)
 import Data.String.QQ (s)
-import Yesod (toWaiApp)
+import Web.Scotty (scottyApp)
 import Yesod.Test
 import qualified Control.Monad.Trans.State as ST
 
 runSpecs :: Connection
             -> IO ()
 runSpecs conn = do bmRef <- newIORef =<< newBM
-                   app   <- toWaiApp $ BucketeerWeb conn bmRef ns
+                   app   <- scottyApp $ bucketeerServer $ BucketeerWeb conn bmRef ns
                    runTests app undefined $ specs conn bmRef
 specs :: Connection
          -> IORef BucketManager
@@ -62,7 +63,7 @@ specs conn bmRef = do
   --- GET /
   describe "GET request to index" $ do
     it "returns a list of buckets" $ do
-      get_ ""
+      get_ "/"
       statusIs 200
 
       bodyContains [s|"restore_rate":1000|]
@@ -73,7 +74,7 @@ specs conn bmRef = do
   --- DELETE /consumers/#Consumer
   describe "DELETE to non-existant consumer" $ do
     it "returns a 404" $ beforeRun >> do
-      delete_ "consumers/bogus"
+      delete_ "/consumers/bogus"
 
       statusIs 404
       bodyContains [s|"description":"Could not find consumer bogus"|]
@@ -81,7 +82,7 @@ specs conn bmRef = do
 
   describe "DELETE request to existing consumer" $ do
     it "returns a 204, deleting the consumer" $ beforeRun >> do
-      delete_ "consumers/summer"
+      delete_ "/consumers/summer"
 
       statusIs 204
 
@@ -93,7 +94,7 @@ specs conn bmRef = do
   --- GET /consumers/#Consumer/buckets/#Feature
   describe "GET to non-existant bucket" $ do
     it "returns a 404" $ beforeRun >> do
-      get_ "consumers/summer/buckets/bogus"
+      get_ "/consumers/summer/buckets/bogus"
 
       statusIs 404
 
@@ -103,7 +104,7 @@ specs conn bmRef = do
 
   describe "GET to existing bucket" $ do
     it "returns a 200" $ beforeRun >> do
-      get_ "consumers/summer/buckets/barrel_roll"
+      get_ "/consumers/summer/buckets/barrel_roll"
 
       statusIs 200
 
@@ -115,7 +116,7 @@ specs conn bmRef = do
     let params = postParams [("capacity", "10"), ("restore_rate", "9000")]
 
     it "creates the consumer/feature" $ beforeRun >> do
-      post "consumers/bogus/buckets/bogus" params
+      post "/consumers/bogus/buckets/bogus" params
 
       statusIs 201
 
@@ -123,7 +124,7 @@ specs conn bmRef = do
     let params = postParams [("capacity", "10"), ("restore_rate", "9000")]
 
     it "returns a 201, filling the user" $ beforeRun >> do
-      post "consumers/summer/buckets/barrel_roll" params
+      post "/consumers/summer/buckets/barrel_roll" params
 
       statusIs 201
       --TODO: verify Location header
@@ -135,7 +136,7 @@ specs conn bmRef = do
     let params = postParams [("restore_rate", "9000")]
 
     it "returns a 400" $ beforeRun >> do
-      post "consumers/summer/buckets/barrel_roll" $ params
+      post "/consumers/summer/buckets/barrel_roll" $ params
 
       statusIs 400
 
@@ -146,7 +147,7 @@ specs conn bmRef = do
     let params = postParams [("capacity", "10")]
 
     it "returns a 400" $ beforeRun >> do
-      post "consumers/summer/buckets/barrel_roll" $ params
+      post "/consumers/summer/buckets/barrel_roll" $ params
 
       statusIs 400
 
@@ -156,7 +157,7 @@ specs conn bmRef = do
   --- DELETE /consumers/#Consumer/buckets/#Bucket
   describe "DELETE to non-existant bucket" $ do
     it "returns a 404" $ beforeRun >> do
-      delete_ "consumers/summer/buckets/bogus"
+      delete_ "/consumers/summer/buckets/bogus"
 
       statusIs 404
 
@@ -166,7 +167,7 @@ specs conn bmRef = do
 
   describe "DELETE to an existing bucket" $ do
     it "returns a 204" $ beforeRun >> do
-      delete_ "consumers/summer/buckets/barrel_roll"
+      delete_ "/consumers/summer/buckets/barrel_roll"
 
       statusIs 204
 
@@ -179,7 +180,7 @@ specs conn bmRef = do
   --- POST /consumers/#Consumer/buckets/#Bucket/tick
   describe "POST to non-existant bucket tick" $ do
     it "returns a 404" $ beforeRun >> do
-      post_ "consumers/summer/buckets/bogus/tick"
+      post_ "/consumers/summer/buckets/bogus/tick"
 
       statusIs 404
 
@@ -189,7 +190,7 @@ specs conn bmRef = do
 
   describe "POST to existing bucket tick" $ do
     it "returns 200" $ beforeRun >> do
-      post_ "consumers/summer/buckets/barrel_roll/tick"
+      post_ "/consumers/summer/buckets/barrel_roll/tick"
 
       statusIs 200
 
@@ -199,7 +200,7 @@ specs conn bmRef = do
   describe "POST to drained bucket tick" $ do
     it "returns 420 and an error" $ beforeRun >> do
       liftIO $ resetCount conn 0
-      post_ "consumers/summer/buckets/barrel_roll/tick"
+      post_ "/consumers/summer/buckets/barrel_roll/tick"
 
       statusIs 420
 
@@ -210,7 +211,7 @@ specs conn bmRef = do
   --- POST /consumers/#Consumer/buckets/#Bucket/refill
   describe "POST to non-existant bucket refill" $ do
     it "returns a 404" $ beforeRun >> do
-      post_ "consumers/summer/buckets/bogus/refill"
+      post_ "/consumers/summer/buckets/bogus/refill"
 
       statusIs 404
 
@@ -219,7 +220,7 @@ specs conn bmRef = do
 
   describe "POST to existing bucket refill" $ do
     it "returns 200" $ beforeRun >> do
-      post_ "consumers/summer/buckets/barrel_roll/refill"
+      post_ "/consumers/summer/buckets/barrel_roll/refill"
 
       statusIs 200
 
@@ -229,7 +230,7 @@ specs conn bmRef = do
   --- POST /consumers/#Consumer/buckets/#Bucket/drain
   describe "POST to non-existant bucket drain" $ do
     it "returns a 404" $ beforeRun >> do
-      post_ "consumers/summer/buckets/bogus/drain"
+      post_ "/consumers/summer/buckets/bogus/drain"
 
       statusIs 404
 
@@ -238,7 +239,7 @@ specs conn bmRef = do
 
   describe "POST to existing bucket drain" $ do
     it "returns 204 with no body" $ beforeRun >> do
-      post_ "consumers/summer/buckets/barrel_roll/drain"
+      post_ "/consumers/summer/buckets/barrel_roll/drain"
 
       statusIs 204
 
@@ -296,12 +297,12 @@ bkt = Bucket { consumer    = cns,
 defaultApp :: Connection
               -> IO Application
 defaultApp conn = do bmRef <- newIORef emptyBM
-                     toWaiApp $ BucketeerWeb conn bmRef ns
+                     scottyApp $ bucketeerServer $ BucketeerWeb conn bmRef ns
 
 loadedApp :: Connection
               -> IO Application
 loadedApp conn = do bmRef <- newIORef . fullBM =<< dummyTid
-                    toWaiApp $ BucketeerWeb conn bmRef ns
+                    scottyApp $ bucketeerServer $ BucketeerWeb conn bmRef ns
 
 postParams pairs = mapM_ (uncurry byName ) pairs
 

@@ -4,8 +4,6 @@ module Bucketeer.Types (Consumer(..),
                         BucketeerNamespace,
                         Bucket(..)) where
 
-import Bucketeer.Util (toMaybe)
-
 import Control.Applicative ((<$>),
                             pure,
                             (<*>))
@@ -18,14 +16,9 @@ import Data.Aeson.Types (FromJSON,
                          typeMismatch,
                          (.=),
                          (.:))
-
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS (null)
 import Data.Hashable (Hashable(..))
-import Data.Text.Encoding (decodeUtf8,
-                           encodeUtf8)
-import Yesod.Dispatch (PathPiece(..))
-
+import Data.Text.Encoding (encodeUtf8)
 
 newtype Consumer = Consumer ByteString deriving (Show, Eq, Read)
 
@@ -36,16 +29,11 @@ instance FromJSON Consumer where
   parseJSON (String str) = pure $ Consumer . encodeUtf8 $ str
   parseJSON v            = typeMismatch "String" v
 
-instance PathPiece Consumer where
-  fromPathPiece txt = Consumer <$> toMaybe (not . BS.null) bs
-    where bs = encodeUtf8 txt
-  toPathPiece (Consumer cns) = decodeUtf8 cns
-
 instance Hashable Consumer where
   hash (Consumer cns)           = hash cns
   hashWithSalt n (Consumer cns) = hashWithSalt n cns
 
-newtype Feature  = Feature  ByteString deriving (Show, Eq, Read)
+newtype Feature  = Feature ByteString deriving (Show, Eq, Read)
 
 instance ToJSON Feature where
   toJSON (Feature feat) = toJSON feat
@@ -56,11 +44,6 @@ instance FromJSON Feature where
 instance Hashable Feature where
   hash (Feature feat)           = hash feat
   hashWithSalt n (Feature feat) = hashWithSalt n feat
-
-instance PathPiece Feature where
-  fromPathPiece txt = Feature <$> toMaybe (not . BS.null) bs
-    where bs = encodeUtf8 txt
-  toPathPiece (Feature feat) = decodeUtf8 feat
 
 data Bucket = Bucket { consumer     :: Consumer,
                        feature      :: Feature,

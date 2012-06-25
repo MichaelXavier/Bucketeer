@@ -3,7 +3,8 @@
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-module Bucketeer.WebServer (BucketeerWeb(..)) where
+module Bucketeer.WebServer (bucketeerServer,
+                            BucketeerWeb(..)) where
 
 import Bucketeer.Persistence (remaining,
                               tick,
@@ -22,192 +23,172 @@ import Bucketeer.Manager (BucketManager,
                           revokeConsumer,
                           BucketInterface(..))
 import Bucketeer.Types
-import Bucketeer.Util (forkWaitingIO,
-                       (.:),
-                       maybeRead)
+import Bucketeer.Util (forkWaitingIO)
 import Bucketeer.WebServer.Util
 
-import Control.Applicative ((<$>))
 import Control.Concurrent (forkIO,
                            ThreadId,
                            killThread)
 import Control.Concurrent.MVar (putMVar)
-import Control.Monad (join,
-                      void)
-import Data.Aeson (toJSON)
+import Control.Monad (void)
+import Control.Monad.IO.Class (liftIO,
+                               MonadIO)
+import Data.Aeson (ToJSON)
 import Data.ByteString (ByteString)
 import Data.HashMap.Strict ((!))
 import Data.IORef (readIORef,
                    IORef,
                    atomicModifyIORef)
-import Data.Maybe (isJust,
-                   fromJust)
-import Data.Text (Text)
+import Data.Monoid (mconcat)
 import Data.Text.Encoding (decodeUtf8)
-import qualified Data.Text as T
+import Data.Text (Text)
+import qualified Data.Text.Lazy as TL
 import Database.Redis (Connection,
                        runRedis)
 import Network.HTTP.Types (Status,
+                           badRequest400,
+                           created201,
                            noContent204,
-                           status400,
                            notFound404)
-import Yesod
+
+import Web.Scotty
+
+bucketeerServer :: BucketeerWeb
+                   -> ScottyM ()
+bucketeerServer BucketeerWeb { connection    = conn,
+                               bucketManager = bmRef,
+                               namespace     = ns } = do
+  get "/" $
+    json . buckets =<< readBM
+
+  delete "/consumers/:consumer" $ checkConsumer $ \cns -> do
+    atomicRevokeConsumer bmRef ns conn cns
+    sendNoContent
+
+  get "/consumers/:consumer/buckets/:feature" $ checkFeature $ \cns feat -> do 
+    json =<< getRemaining conn ns cns feat
+
+  post "/consumers/:consumer/buckets/:feature" $ extractFeature $ \cns@(Consumer c)
+                                                                   feat@(Feature f) -> do 
+    rescueWith missingCapRestore $ do
+      cap  <- param "capacity"
+      rate <- param "restore_rate"
+      create ns bmRef conn $ Bucket cns feat cap rate
+      sendCreated . b2t . mconcat $ ["/consumers/", c, "/buckets/", f]
+
+  delete "/consumers/:consumer/buckets/:feature" $ checkFeature $ \cns feat -> do 
+    atomicRevokeFeature bmRef ns conn cns feat
+    sendNoContent
+
+  post "/consumers/:consumer/buckets/:feature/tick" $ checkFeature $ \cns feat -> do
+    response <- liftIO $ runRedis conn $ tick ns cns feat
+    either sendExhausted json $ tickResponse cns feat response
+
+  post "/consumers/:consumer/buckets/:feature/refill" $ checkFeature $ \cns feat -> do
+    bm <- readBM
+    let cap = capacity . bucket $ bm ! (cns, feat)
+    liftIO $ runRedis conn $ refill ns cns feat cap
+    json $ RemainingResponse cap
+
+  post "/consumers/:consumer/buckets/:feature/drain" $ checkFeature $ \cns feat -> do
+    liftIO $ runRedis conn $ drain ns cns feat
+    sendNoContent
+
+  notFound $ sendError notFound404 []
+
+  where readBM              = liftIO . readIORef $ bmRef
+        extractFeature action
+                       c
+                       f = action (Consumer c) (Feature f)
+        checkConsumer action
+                      c      = do bm <- readBM
+                                  if consumerExists cns bm 
+                                    then action cns
+                                    else sendError notFound404
+                                                    [("Consumer Not Found",
+                                                     mconcat ["Could not find consumer ", b2t c])]
+          where cns = Consumer c
+        checkFeature action
+                     c
+                     f = do bm <- readBM
+                            if featureExists cns feat bm 
+                               then action cns feat
+                               else sendError notFound404
+                                              [("Feature Not Found",
+                                               mconcat ["Could not find feature (", b2t c, ", ", b2t f, ")"])]
+          where cns = Consumer c
+                feat = Feature f
+        rescueWith = flip rescue
 
 data BucketeerWeb = BucketeerWeb { connection    :: Connection,
                                    bucketManager :: IORef BucketManager,
                                    namespace     :: BucketeerNamespace }
 
-instance Yesod BucketeerWeb where
-  approot      = ApprootRelative
-  logLevel _   = LevelDebug
-  encryptKey _ = return Nothing
+missingCapRestore :: TL.Text
+                     -> ActionM ()
+missingCapRestore _ = sendError badRequest400 [("Missing Parameters",
+                                                "capacity and restore_rate params required")]
 
-mkYesod "BucketeerWeb" [parseRoutes|
-  /                                            RootR         GET
-  /consumers/#Consumer                         ConsumerR     DELETE
-  /consumers/#Consumer/buckets/#Feature        BucketR       GET POST DELETE
-  /consumers/#Consumer/buckets/#Feature/tick   BucketTickR   POST
-  /consumers/#Consumer/buckets/#Feature/refill BucketRefillR POST
-  /consumers/#Consumer/buckets/#Feature/drain  BucketDrainR  POST
-|]
+create :: BucketeerNamespace
+          -> IORef BucketManager
+          -> Connection
+          -> Bucket
+          -> ActionM ()
+create ns bmRef conn bkt = liftIO $ do atomicAddFeature ns bmRef conn bkt
+                                       runRedis conn $ refill ns cns feat $ capacity bkt
+                                       backgroundDump ns conn =<< readIORef bmRef
+  where cns  = consumer bkt
+        feat = feature bkt
 
+sendCreated :: Text -> ActionM ()
+sendCreated path = status created201 >> header "Location" path'
+  where path' = TL.fromChunks [path]
 
----- Routes
+sendError :: Status
+             -> [(Text, Text)]
+             -> ActionM ()
+sendError code errs = status code >> json responseErrors
+  where responseErrors = map (uncurry ResponseError) errs
 
-getRootR :: Handler RepJson
-getRootR = jsonToRepJson . buckets =<< readBM
+sendExhausted :: ToJSON a
+                 => a
+                 -> ActionM ()
+sendExhausted obj = status enhanceYourCalm >> json obj
 
-getBucketR :: Consumer
-              -> Feature
-              -> Handler RepJson
-getBucketR cns feat = checkFeature cns feat $ do 
-                        conn <- getConn
-                        ns   <- getNS
-                        jsonToRepJson . RemainingResponse =<< doRemaining conn ns
-  where doRemaining conn ns = liftIO $ runRedis conn $ remainingQuery ns
-        remainingQuery ns = remaining ns cns feat
- 
-postBucketR :: Consumer
-               -> Feature
-               -> Handler ()
-postBucketR cns feat = do cap    <- join <$> (maybeRead . T.unpack) .: lookupPostParam "capacity"
-                          rate   <- join <$> (maybeRead . T.unpack) .: lookupPostParam "restore_rate"
-                          bmRef  <- getBM
-                          conn   <- getConn
-                          ns     <- getNS
-                          if isJust cap && isJust rate
-                            then create ns bmRef conn $ Bucket cns feat (fromJust cap) (fromJust rate)
-                            else sendError status400 [("Missing Parameters", "capacity and restore_rate params required")]
-  where create ns bmRef conn bkt = do liftIO $ do atomicAddFeature ns bmRef conn bkt
-                                                  runRedis conn $ refill ns cns feat $ capacity bkt
-                                                  backgroundDump ns conn =<< readIORef bmRef
-                                      sendResponseCreated route
-        route = BucketR cns feat
-
-deleteBucketR :: Consumer
-                 -> Feature
-                 -> Handler ()
-deleteBucketR cns feat = checkFeature cns feat $ handler >> sendNoContent
-  where handler      = do bmRef <- getBM
-                          conn  <- getConn
-                          ns    <- getNS
-                          liftIO $ revoke ns bmRef conn
-        revoke ns bmRef conn = do atomicKillFeature bmRef cns feat
-                                  runRedis conn $ deleteFeature ns cns feat
-                                  backgroundDump ns conn =<< readIORef bmRef
-
-postBucketTickR :: Consumer
-                   -> Feature
-                   -> Handler RepJson
-postBucketTickR cns feat = checkFeature cns feat $ do
-                             conn <- getConn
-                             ns   <- getNS
-                             checkFeature cns feat $ repResponse . tickResponse cns feat =<< doTick conn ns
-  where doTick conn ns = liftIO $ runRedis conn $ tick ns cns feat
-        repResponse = either exhaustedRepJson jsonToRepJson 
-        exhaustedRepJson obj = sendResponseStatus enhanceYourCalm $ jsonToRep obj
-
-postBucketRefillR :: Consumer
-                     -> Feature
-                     -> Handler RepJson
-postBucketRefillR cns feat = checkFeature cns feat $ do conn <- getConn
-                                                        ns   <- getNS
-                                                        bm   <- readBM
-                                                        let cap = unsafeGetCap bm
-                                                        doRefill ns conn cap
-                                                        jsonToRepJson $ RemainingResponse cap
-  where doRefill ns conn cap = liftIO $ runRedis conn $ refill ns cns feat cap
-        unsafeGetCap bm   = capacity . bucket $ bm ! (cns, feat)
-
-postBucketDrainR :: Consumer
-                    -> Feature
-                    -> Handler ()
-postBucketDrainR cns feat = checkFeature cns feat $ do conn <- getConn
-                                                       ns   <- getNS
-                                                       liftIO $ doDrain ns conn
-                                                       sendNoContent
-  where doDrain ns conn = runRedis conn $ drain ns cns feat
-
-deleteConsumerR  :: Consumer
-                    -> Handler ()
-deleteConsumerR cns = checkConsumer cns $ handler >> sendNoContent
-  where handler = do bmRef <- getBM
-                     ns    <- getNS
-                     conn  <- getConn
-                     liftIO $ revoke bmRef ns conn
-        revoke bmRef ns conn = do mapM_ backgroundKill =<< atomicModifyIORef bmRef (revokeConsumer cns)
-                                  runRedis conn $ deleteConsumer ns cns
-                                  backgroundDump ns conn =<< readIORef bmRef
-
-
----- Helpers
-getConn :: GHandler sub BucketeerWeb Connection
-getConn = connection <$> getYesod
-
-getNS :: GHandler sub BucketeerWeb BucketeerNamespace
-getNS = namespace <$> getYesod
-
-getBM :: GHandler sub BucketeerWeb (IORef BucketManager)
-getBM = bucketManager <$> getYesod
-
-readBM :: GHandler sub BucketeerWeb BucketManager
-readBM = liftIO . readIORef =<< getBM
-
-checkConsumer :: Consumer
-                 -> GHandler s BucketeerWeb b
-                 -> GHandler s BucketeerWeb b
-checkConsumer cns@(Consumer c) inner = switch =<< readBM
-  where switch bm    = if checkBM bm then notFoundResp else inner
-        checkBM      = not . consumerExists cns
-        notFoundResp = sendError notFound404 [("Consumer Not Found", T.concat ["Could not find consumer ", b2t c])]
-
-checkFeature :: Consumer
+getRemaining :: Connection
+                -> BucketeerNamespace
+                -> Consumer
                 -> Feature
-                -> GHandler s BucketeerWeb b
-                -> GHandler s BucketeerWeb b
-checkFeature cns@(Consumer c)
-             feat@(Feature f) inner = switch =<< readBM
-  where switch bm     = if checkBM bm then notFoundResp else inner
-        checkBM       = not . featureExists cns feat
-        notFoundResp  = sendError notFound404 [("Feature Not Found", T.concat ["Could not find feature (",
-                                                                          b2t c,
-                                                                          ", ",
-                                                                          b2t f,
-                                                                          ")" ])]
+                -> ActionM RemainingResponse
+getRemaining conn ns cns feat = RemainingResponse `fmap` (liftIO $ runRedis conn query)
+  where query = remaining ns cns feat
+
+sendNoContent :: ActionM ()
+sendNoContent = status noContent204
 
 b2t :: ByteString
        -> Text
 b2t = decodeUtf8
-  
-sendError :: Status
-             -> [(Text, Text)]
-             -> GHandler s m a
-sendError status errs = sendResponseStatus status repErrs
-  where repErrs        = RepJson . toContent . toJSON $ responseErrors
-        responseErrors = map (uncurry ResponseError) errs
 
-sendNoContent :: GHandler s m a
-sendNoContent = sendResponseStatus noContent204 ()
+atomicRevokeConsumer :: IORef BucketManager
+                        -> BucketeerNamespace
+                        -> Connection
+                        -> Consumer
+                        -> ActionM ()
+atomicRevokeConsumer bmRef ns conn cns = liftIO $ do mapM_ backgroundKill =<< gatherThreads
+                                                     runRedis conn $ deleteConsumer ns cns
+                                                     backgroundDump ns conn =<< readIORef bmRef
+  where gatherThreads = atomicModifyIORef bmRef (revokeConsumer cns)
+
+atomicRevokeFeature :: IORef BucketManager
+                       -> BucketeerNamespace
+                       -> Connection
+                       -> Consumer
+                       -> Feature
+                       -> ActionM ()
+atomicRevokeFeature bmRef ns conn cns feat = liftIO $ do atomicKillFeature bmRef cns feat
+                                                         runRedis conn $ deleteFeature ns cns feat
+                                                         backgroundDump ns conn =<< readIORef bmRef
 
 atomicAddFeature :: BucketeerNamespace
                     -> IORef BucketManager
@@ -240,6 +221,3 @@ backgroundDump :: BucketeerNamespace
                   -> BucketManager
                   -> IO ()
 backgroundDump ns conn bm = void . forkIO $ runRedis conn $ storeBucketManager ns bm
-
-jsonToRep :: ResponseError -> RepJson
-jsonToRep = RepJson . toContent . toJSON
