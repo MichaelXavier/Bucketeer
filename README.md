@@ -1,5 +1,6 @@
 Bucketeer
 ---------
+[![Build Status](https://secure.travis-ci.org/MichaelXavier/Bucketeer.png)](http://travis-ci.org/MichaelXavier/Bucketeer)
 
 Bucketeer is a lightweight web service used for governing other rate limited
 services via a leaky bucket algorithm. Bucketeer is written in Haskell and uses
