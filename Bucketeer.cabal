@@ -30,6 +30,9 @@ Executable bucketeer
                      wai                  == 1.1.*,
                      wai-extra            == 1.1.*,
                      warp                 == 1.1.*,
+                     scotty               == 0.*,
+                     transformers         == 0.*,
+                     -- TODO: remove
                      yesod                == 0.10.*,
                      yesod-core           == 0.10.*
                      

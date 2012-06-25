@@ -45,7 +45,7 @@ instance Hashable Consumer where
   hash (Consumer cns)           = hash cns
   hashWithSalt n (Consumer cns) = hashWithSalt n cns
 
-newtype Feature  = Feature  ByteString deriving (Show, Eq, Read)
+newtype Feature  = Feature ByteString deriving (Show, Eq, Read)
 
 instance ToJSON Feature where
   toJSON (Feature feat) = toJSON feat

@@ -10,7 +10,7 @@ all: build
 	rm -rf dist/build/bucketeer/bucketeer-tmp
 	tar czfv bucketeer.keter $(OUTPUT_BIN) config/keter.yaml
 
-build: configure Main.hs Bucketeer/*.hs
+build: configure Bucketeer/*.hs
 	$(CABAL) build
 	
 configure: Bucketeer.cabal install_dependencies

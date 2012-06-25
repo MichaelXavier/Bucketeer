@@ -9,7 +9,8 @@ import Bucketeer.Manager (consumerExists,
                           BucketManager)
 import Bucketeer.Persistence (remaining)
 import Bucketeer.Types
-import Bucketeer.WebServer (BucketeerWeb(..))
+import Bucketeer.WebServer (BucketeerWeb(..),
+                            bucketeerServer)
 
 import Control.Concurrent (forkIO,
                            ThreadId)
@@ -40,13 +41,14 @@ import Test.Hspec.HUnit
 import Test.HUnit (assertBool)
 import Data.String.QQ (s)
 import Yesod (toWaiApp)
+import Web.Scotty (scottyApp)
 import Yesod.Test
 import qualified Control.Monad.Trans.State as ST
 
 runSpecs :: Connection
             -> IO ()
 runSpecs conn = do bmRef <- newIORef =<< newBM
-                   app   <- toWaiApp $ BucketeerWeb conn bmRef ns
+                   app   <- scottyApp $ bucketeerServer $ BucketeerWeb conn bmRef ns
                    runTests app undefined $ specs conn bmRef
 specs :: Connection
          -> IORef BucketManager
@@ -296,12 +298,12 @@ bkt = Bucket { consumer    = cns,
 defaultApp :: Connection
               -> IO Application
 defaultApp conn = do bmRef <- newIORef emptyBM
-                     toWaiApp $ BucketeerWeb conn bmRef ns
+                     scottyApp $ bucketeerServer $ BucketeerWeb conn bmRef ns
 
 loadedApp :: Connection
               -> IO Application
 loadedApp conn = do bmRef <- newIORef . fullBM =<< dummyTid
-                    toWaiApp $ BucketeerWeb conn bmRef ns
+                    scottyApp $ bucketeerServer $ BucketeerWeb conn bmRef ns
 
 postParams pairs = mapM_ (uncurry byName ) pairs
 
