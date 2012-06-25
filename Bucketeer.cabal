@@ -1,5 +1,5 @@
 Name:                Bucketeer
-Version:             0.0.1
+Version:             0.0.2
 Description:         HTTP service for leaky bucket style rate limiting
 License:             MIT
 License-file:        LICENSE
@@ -33,9 +33,6 @@ Executable bucketeer
                      scotty               >= 0.4.3 && < 1.0,
                      transformers         == 0.*,
                      resourcet            == 0.3.*
-                     -- TODO: remove
-                     --yesod                == 0.10.*,
-                     --yesod-core           == 0.10.*
                      
   GHC-Options: -Wall -O2 -threaded
 
