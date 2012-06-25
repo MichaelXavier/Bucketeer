@@ -36,7 +36,6 @@ import System.IO (hPutStrLn,
                   IOMode(AppendMode),
                   stdout,
                   stderr)
-import Yesod.Dispatch (toWaiApp)
 
 import Web.Scotty
 

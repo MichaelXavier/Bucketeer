@@ -2,6 +2,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Bucketeer.Testing.Types (specs) where
 
+import Data.ByteString.Lazy (fromChunks)
 import Bucketeer.Testing.TestHelpers
 import Bucketeer.Types
 
@@ -30,11 +31,13 @@ describe_Bucket_fromJSON = describe "Bucketeer.Types.Bucket fromJSON" [
     it "parses well-formed json" $
       decodeJSON bktJSON ~?= Right bkt,
     it "fails json missing keys" $
-      decodeJSON [s|{"restore_rate":1}|] ~?= (Left "key \"consumer\" not present" :: Either String Bucket),
+      decodeJSON restoreRate ~?= (Left "key \"consumer\" not present" :: Either String Bucket),
     it "fails json of the wrong type" $
-      decodeJSON "[]" ~?= (Left "when expecting a Object, encountered Array instead" :: Either String Bucket)
+      decodeJSON empty ~?= (Left "when expecting a Object, encountered Array instead" :: Either String Bucket)
   ]
-  where bktJSON = [s|{"restore_rate":1,"capacity":2,"feature":"barrel_roll","consumer":"summer"}|]
+  where bktJSON = fromChunks [[s|{"restore_rate":1,"capacity":2,"feature":"barrel_roll","consumer":"summer"}|]]
+        restoreRate = fromChunks [[s|{"restore_rate":1}|]]
+        empty = fromChunks ["[]"]
 
 ---- Helpers
 cns :: Consumer

@@ -104,6 +104,9 @@ bucketeerServer BucketeerWeb { connection    = conn,
   post "/consumers/:consumer/buckets/:feature/drain" $ withFeature $ \cns feat -> do
     liftIO $ runRedis conn $ drain ns cns feat
     sendNoContent
+
+  notFound $ sendError notFound404 []
+
   where readBM              = liftIO . readIORef $ bmRef
         withConsumer action = do cns <- Consumer `fmap` param "consumer"
                                  bm  <- readBM
@@ -115,10 +118,10 @@ bucketeerServer BucketeerWeb { connection    = conn,
         checkConsumer cns@(Consumer c)
                       bm
                       action = if consumerExists cns bm 
-                                         then action cns
-                                         else sendError notFound404
-                                                        [("Consumer Not Found",
-                                                          mconcat ["Could not find consumer ", b2t c])]
+                                 then action cns
+                                 else sendError notFound404
+                                                [("Consumer Not Found",
+                                                 mconcat ["Could not find consumer ", b2t c])]
         checkFeature cns@(Consumer c)
                      feat@(Feature f)
                      bm
@@ -126,7 +129,7 @@ bucketeerServer BucketeerWeb { connection    = conn,
                                 then action cns feat
                                 else sendError notFound404
                                                [("Feature Not Found",
-                                               mconcat ["Could not find feature (", b2t c, ", ", b2t f, ")"])]
+                                                mconcat ["Could not find feature (", b2t c, ", ", b2t f, ")"])]
 
 data BucketeerWeb = BucketeerWeb { connection    :: Connection,
                                    bucketManager :: IORef BucketManager,

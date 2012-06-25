@@ -27,14 +27,15 @@ Executable bucketeer
                      unbounded-delays     == 0.1.*,
                      unix                 == 2.5.*,
                      unordered-containers >= 0.2.1 && < 0.3,
-                     wai                  == 1.1.*,
-                     wai-extra            == 1.1.*,
-                     warp                 == 1.1.*,
-                     scotty               == 0.*,
+                     wai                  >= 1.2,
+                     wai-extra            >= 1.2,
+                     warp                 >= 1.2,
+                     scotty               >= 0.4.3 && < 1.0,
                      transformers         == 0.*,
+                     resourcet            == 0.3.*
                      -- TODO: remove
-                     yesod                == 0.10.*,
-                     yesod-core           == 0.10.*
+                     --yesod                == 0.10.*,
+                     --yesod-core           == 0.10.*
                      
   GHC-Options: -Wall -O2 -threaded
 
@@ -45,5 +46,5 @@ Test-Suite test-bucketeer
                   HUnit     == 1.2.*,
                   string-qq == 0.0.2.*,
                   transformers == 0.2.*,
-                  wai-test == 1.1.*,
-                  yesod-test == 0.1.*
+                  wai-test  >= 1.1,
+                  yesod-test == 0.2.*
