@@ -26,7 +26,7 @@ keter: $(OUTPUT_BIN) config/keter.yaml
 	tar czfv bucketeer.keter $(OUTPUT_BIN) config/keter.yaml
 
 install_dependencies:
-	$(CABAL) install --only-dependencies
+	$(CABAL) install --only-dependencies --enable-tests
 
 clean:
 	$(CABAL) clean
