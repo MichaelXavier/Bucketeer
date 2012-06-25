@@ -4,8 +4,6 @@ module Bucketeer.Types (Consumer(..),
                         BucketeerNamespace,
                         Bucket(..)) where
 
-import Bucketeer.Util (toMaybe)
-
 import Control.Applicative ((<$>),
                             pure,
                             (<*>))
@@ -18,12 +16,9 @@ import Data.Aeson.Types (FromJSON,
                          typeMismatch,
                          (.=),
                          (.:))
-
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS (null)
 import Data.Hashable (Hashable(..))
-import Data.Text.Encoding (decodeUtf8,
-                           encodeUtf8)
+import Data.Text.Encoding (encodeUtf8)
 
 newtype Consumer = Consumer ByteString deriving (Show, Eq, Read)
 

@@ -23,35 +23,25 @@ import Bucketeer.Manager (BucketManager,
                           revokeConsumer,
                           BucketInterface(..))
 import Bucketeer.Types
-import Bucketeer.Util (forkWaitingIO,
-                       (.:),
-                       maybeRead)
+import Bucketeer.Util (forkWaitingIO)
 import Bucketeer.WebServer.Util
 
-import Control.Applicative ((<$>),
-                            (<*>),
-                            pure)
 import Control.Concurrent (forkIO,
                            ThreadId,
                            killThread)
 import Control.Concurrent.MVar (putMVar)
-import Control.Monad (join,
-                      void)
+import Control.Monad (void)
 import Control.Monad.IO.Class (liftIO,
                                MonadIO)
-import Data.Aeson (toJSON,
-                   ToJSON)
+import Data.Aeson (ToJSON)
 import Data.ByteString (ByteString)
 import Data.HashMap.Strict ((!))
 import Data.IORef (readIORef,
                    IORef,
                    atomicModifyIORef)
-import Data.Maybe (isJust,
-                   fromJust)
 import Data.Monoid (mconcat)
-import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
-import qualified Data.Text as T
+import Data.Text (Text)
 import qualified Data.Text.Lazy as TL
 import Database.Redis (Connection,
                        runRedis)
@@ -59,11 +49,7 @@ import Network.HTTP.Types (Status,
                            badRequest400,
                            created201,
                            noContent204,
-                           status400,
                            notFound404)
-
-
-
 
 import Web.Scotty
 

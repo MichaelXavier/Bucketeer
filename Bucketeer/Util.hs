@@ -1,10 +1,7 @@
 module Bucketeer.Util (forkWaitableIO,
                        forkWaitingIO,
-                       toMaybe,
                        delete',
-                       maybeRead,
                        applyList,
-                       (.:),
                        decodeJSON) where
 
 import Control.Concurrent (forkIO,
@@ -24,7 +21,6 @@ import Data.ByteString (ByteString)
 import Data.Hashable (Hashable)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as H
-import Data.Maybe (listToMaybe)
 
 forkWaitableIO :: IO ()
                   -> IO (MVar (), ThreadId)
@@ -43,23 +39,11 @@ applyList :: [a -> b]
              -> [b]
 applyList = sequence
 
-toMaybe :: (a -> Bool)
-           -> a
-           -> Maybe a
-toMaybe predicate x
-        | predicate x = Just x
-        | otherwise   = Nothing
-
 delete' :: (Eq k, Hashable k)
            => k
            -> HashMap k v
            -> (HashMap k v, Maybe v)
 delete' k h = (H.delete k h, H.lookup k h)
-
-maybeRead :: Read a
-             => String
-             -> Maybe a
-maybeRead = fmap fst . listToMaybe . reads
 
 decodeJSON :: FromJSON a
               => ByteString
@@ -69,9 +53,3 @@ decodeJSON str = fjson =<< parsed
         fjson v = case fromJSON v of
                     Success x -> Right x
                     Error e   -> Left e
-
-(.:) :: (Functor f, Functor g)
-        => (a -> b)
-        -> f (g a)
-        -> f (g b)
-(.:) = fmap . fmap
